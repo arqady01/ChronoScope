@@ -11,8 +11,6 @@ import { Ionicons } from '@expo/vector-icons';
 
 const WEEKDAY_LABELS = ['一', '二', '三', '四', '五', '六', '日'];
 
-const SHIFT_SEQUENCE: ShiftType[] = ['early', 'mid', 'late', 'off'];
-
 const SHIFT_CONFIG: Record<ShiftType, ShiftVisualConfig> = {
   early: {
     label: '早班',
@@ -50,58 +48,36 @@ const SHIFT_CONFIG: Record<ShiftType, ShiftVisualConfig> = {
 
 const BASE_SCHEDULE: Record<string, Partial<DaySchedule>> = {
   '2025-09-02': {
-    tasks: [
-      { id: 'task-2025-09-02-1', title: '复盘晨会纪要', timeRange: '09:00', description: '整理班前会重点提醒内容。' },
-    ],
+    tasks: [{ id: 'task-2025-09-02-1', title: '复盘晨会纪要', timeRange: '09:00', description: '整理班前会重点提醒内容。' }],
   },
   '2025-09-08': {
-    shift: 'mid',
-    shiftTime: '16:00 - 22:30',
     colleagues: ['李晓', '张明华', '王思雅', '蔡敏'],
     notes: '今天整体排班较轻松，记得巡场时顺手检查物资。',
   },
   '2025-09-09': {
-    shift: 'late',
-    shiftTime: '22:30 - 08:30',
     colleagues: ['骆晓丹', '吴大雨', '诸葛靓', '庞觉'],
     tasks: [
-      {
-        id: 'task-1',
-        title: '校对字幕单',
-        timeRange: '10:00 - 13:00',
-        description: '确保活动厅字幕模板全部更新，交接给下个班次。',
-      },
-      {
-        id: 'task-2',
-        title: '潜睡一会醒来继续鏖战',
-        timeRange: '14:00 - 15:00',
-        description: '补充精力后梳理夜班值守 FAQ。',
-      },
-      {
-        id: 'task-3',
-        title: '喝水并远眺',
-        timeRange: '19:00 - 20:00',
-        description: '伸展肩颈，缓解久坐疲劳。',
-      },
+      { id: 'task-1', title: '校对字幕单', timeRange: '10:00 - 13:00', description: '确保活动厅字幕模板全部更新，交接给下个班次。' },
+      { id: 'task-2', title: '潜睡一会醒来继续鏖战', timeRange: '14:00 - 15:00', description: '补充精力后梳理夜班值守 FAQ。' },
+      { id: 'task-3', title: '喝水并远眺', timeRange: '19:00 - 20:00', description: '伸展肩颈，缓解久坐疲劳。' },
     ],
   },
   '2025-09-15': {
-    shift: 'off',
     notes: '轮休日，去做一直想预约的体检。',
   },
   '2025-09-22': {
-    tasks: [
-      { id: 'task-2025-09-22-1', title: '月末库存盘点', timeRange: '17:00', description: '与仓储组核对耗材数量。' },
-    ],
+    tasks: [{ id: 'task-2025-09-22-1', title: '月末库存盘点', timeRange: '17:00', description: '与仓储组核对耗材数量。' }],
   },
 };
 
 const COLLEAGUES = ['李晓', '张明华', '王思雅', '蔡敏', '骆晓丹', '吴大雨', '诸葛靓', '庞觉', '陈意航', '周启航'];
+const SHIFT_OPTIONS: ShiftType[] = ['off', 'early', 'mid', 'late'];
 
 export default function HomeScreen() {
   const initialMonth = useMemo(() => new Date(2025, 8, 1), []); // 2025-09
   const [currentMonth, setCurrentMonth] = useState<Date>(initialMonth);
   const [selectedDateKey, setSelectedDateKey] = useState<string>('2025-09-08');
+  const [customOverrides, setCustomOverrides] = useState<Record<string, Partial<DaySchedule>>>({});
 
   const calendarDays = useMemo(() => buildCalendarDays(currentMonth), [currentMonth]);
 
@@ -109,17 +85,32 @@ export default function HomeScreen() {
     const map: Record<string, DaySchedule> = {};
 
     calendarDays.forEach(({ key, date }) => {
-      map[key] = buildDaySchedule(key, date);
+      map[key] = buildDaySchedule(key, date, customOverrides[key]);
     });
 
     return map;
-  }, [calendarDays]);
+  }, [calendarDays, customOverrides]);
 
   const selectedSchedule = scheduleByDay[selectedDateKey] ?? buildDaySchedule(selectedDateKey, parseISO(selectedDateKey));
 
   const monthLabel = useMemo(() => formatMonth(currentMonth), [currentMonth]);
 
   const calendarRows = useMemo(() => chunk(calendarDays, 7), [calendarDays]);
+
+  const handleShiftChange = (shift: ShiftType) => {
+    setCustomOverrides((prev) => {
+      const next = { ...prev };
+      const config = SHIFT_CONFIG[shift];
+      const existing = next[selectedDateKey] ?? {};
+      const updated: Partial<DaySchedule> = {
+        ...existing,
+        shift,
+        shiftTime: shift === 'off' ? null : config.defaultTime,
+      };
+      next[selectedDateKey] = updated;
+      return next;
+    });
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -198,7 +189,7 @@ export default function HomeScreen() {
           ))}
         </View>
 
-        <DayDetailsCard schedule={selectedSchedule} />
+        <DayDetailsCard schedule={selectedSchedule} onShiftChange={handleShiftChange} />
       </ScrollView>
 
       <Pressable style={styles.fab} onPress={() => {}}>
@@ -255,13 +246,41 @@ function IconButton({ icon, onPress }: IconButtonProps) {
   );
 }
 
-function DayDetailsCard({ schedule }: { schedule: DaySchedule }) {
+function DayDetailsCard({ schedule, onShiftChange }: { schedule: DaySchedule; onShiftChange: (shift: ShiftType) => void }) {
   const shiftConfig = SHIFT_CONFIG[schedule.shift];
   const dateLabel = formatChineseDate(schedule.date);
 
   return (
     <View style={styles.detailsCard}>
       <Text style={styles.sectionTitle}>{`班次信息 - ${dateLabel}`}</Text>
+
+      <View style={styles.shiftSelectorRow}>
+        {SHIFT_OPTIONS.map((option) => {
+          const optionConfig = SHIFT_CONFIG[option];
+          const isActive = schedule.shift === option;
+          return (
+            <Pressable
+              key={option}
+              onPress={() => onShiftChange(option)}
+              style={[
+                styles.shiftOption,
+                {
+                  borderColor: optionConfig.textColor,
+                },
+                isActive && [styles.shiftOptionActive, { backgroundColor: optionConfig.softBackground, borderColor: optionConfig.accent }],
+              ]}>
+              <Text
+                style={[
+                  styles.shiftOptionLabel,
+                  { color: optionConfig.textColor },
+                  isActive && { color: optionConfig.accent },
+                ]}>
+                {option === 'off' ? '休息' : optionConfig.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
       <View style={[styles.shiftSummary, { backgroundColor: shiftConfig.softBackground }]}> 
         <Text style={[styles.shiftSummaryText, { color: shiftConfig.textColor }]}> 
@@ -333,25 +352,20 @@ function buildCalendarDays(monthDate: Date): CalendarDay[] {
   });
 }
 
-function buildDaySchedule(key: string, date: Date): DaySchedule {
+function buildDaySchedule(key: string, date: Date, override?: Partial<DaySchedule>): DaySchedule {
   const base = BASE_SCHEDULE[key] ?? {};
-  const shift = base.shift ?? deriveShiftFromDate(date);
+  const shift = override?.shift ?? base.shift ?? 'off';
   const shiftConfig = SHIFT_CONFIG[shift];
 
   return {
     key,
     date,
     shift,
-    shiftTime: base.shiftTime ?? shiftConfig.defaultTime,
-    colleagues: base.colleagues ?? deriveColleagues(date.getDate()),
-    tasks: base.tasks ?? deriveTasks(date),
-    notes: base.notes,
+    shiftTime: override?.shiftTime ?? base.shiftTime ?? shiftConfig.defaultTime,
+    colleagues: override?.colleagues ?? base.colleagues ?? deriveColleagues(date.getDate()),
+    tasks: override?.tasks ?? base.tasks ?? deriveTasks(date),
+    notes: override?.notes ?? base.notes,
   };
-}
-
-function deriveShiftFromDate(date: Date): ShiftType {
-  const day = date.getDate();
-  return SHIFT_SEQUENCE[(day - 1) % SHIFT_SEQUENCE.length];
 }
 
 function deriveColleagues(day: number): string[] {
@@ -555,6 +569,27 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     marginBottom: 24,
+  },
+  shiftSelectorRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 16,
+  },
+  shiftOption: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shiftOptionActive: {
+    borderWidth: 2,
+  },
+  shiftOptionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   shiftSummaryText: {
     fontSize: 14,
