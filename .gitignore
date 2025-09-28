@@ -1,43 +1,56 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+# Git ignore rules for the ChronoScope Expo project
+# Docs: https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# Dependencies & build output
 node_modules/
-
-# Expo
-.expo/
 dist/
 web-build/
+
+# Expo / Metro / React Native caches
+.expo/
+.expo-shared/
+.expo-go
+metro-cache/
+.metro-health-check*
+index.android.bundle
+index.ios.bundle
+metro.config.local.js
+
+# Native project folders (generated when prebuilding)
+android/
+ios/
+app-example/
+
+# Environment files
+.env*
 expo-env.d.ts
 
-# Native
-.kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
-# Metro
-.metro-health-check*
-
-# debug
+# Logs & diagnostics
+*.log
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+pnpm-debug.*
+expo-error.log
 
-# macOS
+# OS / editor artifacts
 .DS_Store
-*.pem
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# local env files
-.env*.local
-
-# typescript
+# TypeScript incremental build info
 *.tsbuildinfo
 
-app-example
+# Certificates & secrets
+*.pem
+*.key
+*.jks
+*.p8
+*.p12
+*.mobileprovision
 
-# generated native folders
-/ios
-/android
+# Test coverage
+coverage/
