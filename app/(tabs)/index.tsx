@@ -112,12 +112,24 @@ export default function HomeScreen() {
     });
   };
 
+  const handleGoToToday = () => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    setCurrentMonth(monthStart);
+    setSelectedDateKey(formatDateKey(now));
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
           <IconButton icon="chevron-back" onPress={() => changeMonth(-1, setCurrentMonth, setSelectedDateKey)} />
-          <Text style={styles.monthTitle}>{monthLabel}</Text>
+          <View style={styles.monthCluster}>
+            <Text style={styles.monthTitle}>{monthLabel}</Text>
+            <Pressable style={styles.todayButton} onPress={handleGoToToday}>
+              <Text style={styles.todayButtonText}>今</Text>
+            </Pressable>
+          </View>
           <IconButton icon="chevron-forward" onPress={() => changeMonth(1, setCurrentMonth, setSelectedDateKey)} />
         </View>
 
@@ -447,6 +459,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 8,
   },
+  monthCluster: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   monthTitle: {
     fontSize: 22,
     fontWeight: '600',
@@ -466,6 +483,26 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
     elevation: 2,
+  },
+  todayButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  todayButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
   },
   weekdayRow: {
     flexDirection: 'row',
