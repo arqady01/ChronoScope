@@ -203,10 +203,6 @@ export default function HomeScreen() {
 
         <DayDetailsCard schedule={selectedSchedule} onShiftChange={handleShiftChange} />
       </ScrollView>
-
-      <Pressable style={styles.fab} onPress={() => {}}>
-        <Ionicons name="add" size={28} color="white" />
-      </Pressable>
     </SafeAreaView>
   );
 }
@@ -707,21 +703,5 @@ const styles = StyleSheet.create({
     color: '#3D6647',
     textAlign: 'center',
     lineHeight: 18,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 36,
-    alignSelf: 'center',
-    backgroundColor: '#111827',
-    width: 64,
-    height: 64,
-    borderRadius: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
   },
 });
