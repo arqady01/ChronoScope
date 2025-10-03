@@ -1,46 +1,16 @@
+import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Fonts } from '@/constants/theme';
 
-const SHIFT_CARDS = [
-  {
-    key: 'early',
-    title: '早班',
-    count: '8',
-    workRatio: '工作占比: 32%',
-    monthRatio: '总月占比: 27%',
-    backgroundColor: 'rgba(255, 165, 0, 0.3)',
-    borderColor: 'rgba(255, 165, 0, 0.8)',
-  },
-  {
-    key: 'mid',
-    title: '中班',
-    count: '12',
-    workRatio: '工作占比: 48%',
-    monthRatio: '总月占比: 40%',
-    backgroundColor: 'rgba(109, 41, 246, 0.3)',
-    borderColor: 'rgba(109, 41, 246, 0.8)',
-  },
-  {
-    key: 'late',
-    title: '晚班',
-    count: '5',
-    workRatio: '工作占比: 20%',
-    monthRatio: '总月占比: 17%',
-    backgroundColor: 'rgba(20, 107, 194, 0.3)',
-    borderColor: 'rgba(20, 107, 194, 0.8)',
-  },
-  {
-    key: 'rest',
-    title: '休息',
-    count: '5',
-    workRatio: '工作占比: 20%',
-    monthRatio: '总月占比: 17%',
-    backgroundColor: 'rgba(60, 186, 46, 0.3)',
-    borderColor: 'rgba(60, 186, 46, 0.8)',
-  },
-] as const;
+import {
+  SHIFT_CONFIG,
+  buildCalendarDays,
+  type DaySchedule,
+  type ShiftType,
+} from '@/lib/schedule';
+import { useSchedule } from '@/providers/schedule-provider';
 
 const LINK_ITEMS = ['隐私政策', '服务条款', '关于我们'] as const;
 
@@ -50,8 +20,72 @@ const GRID_MAX_CARD = 150;
 const DEFAULT_GRID_GAP = 28;
 const COMPACT_GRID_GAP = 20;
 
+const SHIFT_CARD_SEQUENCE: ShiftType[] = ['early', 'mid', 'late', 'off'];
+
+type ScheduleGetter = (key: string, date?: Date) => DaySchedule;
+
+type ShiftCardStat = {
+  key: ShiftType;
+  title: string;
+  count: number;
+  workRatioLabel: string;
+  monthRatioLabel: string;
+  backgroundColor: string;
+  borderColor: string;
+  textColor: string;
+};
+
+function buildShiftCardStats(getScheduleForDate: ScheduleGetter, referenceDate = new Date()): ShiftCardStat[] {
+  const monthStart = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 1);
+  const calendarDays = buildCalendarDays(monthStart);
+  const currentMonthDays = calendarDays.filter((day) => day.isCurrentMonth);
+
+  const totalDaysInMonth = currentMonthDays.length;
+  const counts: Record<ShiftType, number> = {
+    early: 0,
+    mid: 0,
+    late: 0,
+    off: 0,
+  };
+
+  currentMonthDays.forEach((day) => {
+    const schedule = getScheduleForDate(day.key, day.date);
+    counts[schedule.shift] += 1;
+  });
+
+  const totalWorkingDays = counts.early + counts.mid + counts.late;
+
+  return SHIFT_CARD_SEQUENCE.map((shift) => {
+    const config = SHIFT_CONFIG[shift];
+    const count = counts[shift];
+    const displayTitle = shift === 'off' ? '休息' : config.label;
+
+    return {
+      key: shift,
+      title: displayTitle,
+      count,
+      workRatioLabel: `工作占比: ${formatPercent(count, totalWorkingDays)}`,
+      monthRatioLabel: `总月占比: ${formatPercent(count, totalDaysInMonth)}`,
+      backgroundColor: config.softBackground,
+      borderColor: config.accent,
+      textColor: config.textColor,
+    };
+  });
+}
+
+function formatPercent(value: number, total: number): string {
+  if (total <= 0) {
+    return '0%';
+  }
+
+  return `${Math.round((value / total) * 100)}%`;
+}
+
 export default function ProfileScreen() {
   const { width } = useWindowDimensions();
+  const { getScheduleForDate } = useSchedule();
+  const shiftCards = useMemo(() => buildShiftCardStats(getScheduleForDate), [getScheduleForDate]);
+  const cardCount = shiftCards.length;
 
   const contentPadding = CONTENT_HORIZONTAL_PADDING * 2;
   const availableWidth = Math.max(width - contentPadding, 0);
@@ -90,9 +124,9 @@ export default function ProfileScreen() {
                 width: containerWidth,
               },
             ]}>
-            {SHIFT_CARDS.map((card, index) => {
+            {shiftCards.map((card, index) => {
               const isLastColumn = (index + 1) % GRID_COLUMNS === 0;
-              const isLastRow = index >= SHIFT_CARDS.length - GRID_COLUMNS;
+              const isLastRow = index >= cardCount - GRID_COLUMNS;
 
               return (
                 <View
@@ -109,11 +143,11 @@ export default function ProfileScreen() {
                       borderColor: card.borderColor,
                     },
                   ]}>
-                  <Text style={styles.shiftName}>{card.title}</Text>
-                  <Text style={styles.shiftCount}>{card.count}</Text>
-                  <View style={styles.shiftDivider} />
-                  <Text style={styles.shiftMeta}>{card.workRatio}</Text>
-                  <Text style={styles.shiftMeta}>{card.monthRatio}</Text>
+                  <Text style={[styles.shiftName, { color: card.textColor }]}>{card.title}</Text>
+                  <Text style={[styles.shiftCount, { color: card.textColor }]}>{card.count}</Text>
+                  <View style={[styles.shiftDivider, { backgroundColor: card.borderColor }]} />
+                  <Text style={[styles.shiftMeta, { color: card.textColor }]}>{card.workRatioLabel}</Text>
+                  <Text style={[styles.shiftMeta, { color: card.textColor }]}>{card.monthRatioLabel}</Text>
                 </View>
               );
             })}
