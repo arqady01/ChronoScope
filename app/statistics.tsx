@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { BarChart, LineChart } from 'react-native-gifted-charts';
+import { LineChart } from 'react-native-gifted-charts';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Fonts } from '@/constants/theme';
@@ -18,6 +18,13 @@ const REST_LINE_COLOR = SHIFT_CONFIG.off.accent;
 const EARLY_BAR_COLOR = SHIFT_CONFIG.early.accent;
 const MID_BAR_COLOR = SHIFT_CONFIG.mid.accent;
 const LATE_BAR_COLOR = SHIFT_CONFIG.late.accent;
+const SHIFT_POINTER_COLORS = [EARLY_BAR_COLOR, MID_BAR_COLOR, LATE_BAR_COLOR] as const;
+const EARLY_FILL_START = 'rgba(255, 174, 88, 0.22)';
+const EARLY_FILL_END = 'rgba(255, 174, 88, 0.04)';
+const MID_FILL_START = 'rgba(115, 91, 242, 0.18)';
+const MID_FILL_END = 'rgba(115, 91, 242, 0.04)';
+const LATE_FILL_START = 'rgba(20, 107, 194, 0.20)';
+const LATE_FILL_END = 'rgba(20, 107, 194, 0.04)';
 const DEMO_DATA_YEAR = 2025;
 const BASELINE_SEED_YEARS = [DEMO_DATA_YEAR, DEMO_DATA_YEAR - 1] as const;
 
@@ -98,14 +105,9 @@ export default function StatisticsScreen() {
   const restLineData = monthlyWorkRest.map((stat) => ({ value: stat.restDays, label: `${stat.month}月` }));
   const monthLabels = monthlyWorkRest.map((stat) => `${stat.month}月`);
 
-  const stackedBarData = monthlyShiftDistribution.map((stat) => ({
-    label: `${stat.month}月`,
-    stacks: [
-      { value: stat.early, color: EARLY_BAR_COLOR },
-      { value: stat.mid, color: MID_BAR_COLOR },
-      { value: stat.late, color: LATE_BAR_COLOR },
-    ],
-  }));
+  const earlyLineData = monthlyShiftDistribution.map((stat) => ({ value: stat.early, label: `${stat.month}月` }));
+  const midLineData = monthlyShiftDistribution.map((stat) => ({ value: stat.mid, label: `${stat.month}月` }));
+  const lateLineData = monthlyShiftDistribution.map((stat) => ({ value: stat.late, label: `${stat.month}月` }));
 
   const lineChartHeight = 240;
   const lineChartSpacing = 50;
@@ -175,6 +177,73 @@ export default function StatisticsScreen() {
     }),
     [pointerLabelRenderer, lineChartHeight],
   );
+
+  const shiftPointerLabelRenderer = useCallback(
+    (
+      items: Array<{ value?: number }> | undefined,
+      _secondaryItem: unknown,
+      pointerIndex?: number,
+    ) => {
+      if (typeof pointerIndex !== 'number' || pointerIndex < 0) {
+        return null;
+      }
+      const stat = monthlyShiftDistribution[pointerIndex];
+      if (!stat) {
+        return null;
+      }
+
+      const values = [
+        items?.[0]?.value ?? stat.early,
+        items?.[1]?.value ?? stat.mid,
+        items?.[2]?.value ?? stat.late,
+      ];
+
+      const rows = [
+        { label: '早班', color: EARLY_BAR_COLOR, value: values[0] },
+        { label: '中班', color: MID_BAR_COLOR, value: values[1] },
+        { label: '晚班', color: LATE_BAR_COLOR, value: values[2] },
+      ];
+
+      return (
+        <View style={styles.pointerLabelContainer}>
+          <Text style={styles.pointerLabelMonth}>{`${stat.month}月`}</Text>
+          {rows.map((row) => (
+            <View key={row.label} style={styles.pointerLabelValueRow}>
+              <View style={[styles.pointerLabelDot, { backgroundColor: row.color }]} />
+              <Text style={styles.pointerLabelValueText}>{`${row.label} ${Math.round(row.value ?? 0)}天`}</Text>
+            </View>
+          ))}
+        </View>
+      );
+    },
+    [monthlyShiftDistribution],
+  );
+
+  const shiftLinePointerConfig = useMemo(
+    () => ({
+      pointerLabelComponent: shiftPointerLabelRenderer,
+      pointerLabelWidth: 168,
+      pointerLabelHeight: 116,
+      autoAdjustPointerLabelPosition: true,
+      showPointerStrip: true,
+      pointerStripHeight: lineChartHeight,
+      pointerStripWidth: 2,
+      pointerStripColor: 'rgba(24, 25, 31, 0.14)',
+      pointerStripUptoDataPoint: true,
+      strokeDashArray: [4, 6],
+      pointerVanishDelay: 40,
+      pointerComponent: (_item: unknown, index: number) => (
+        <View
+          style={[
+            styles.pointerDot,
+            { borderColor: SHIFT_POINTER_COLORS[index] ?? '#2EBD59' },
+          ]}
+        />
+      ),
+      resetPointerIndexOnRelease: true,
+    }),
+    [shiftPointerLabelRenderer, lineChartHeight],
+  );
   const formatYAxisLabel = (label: string) => {
     const numeric = Number(label);
     if (Number.isNaN(numeric)) {
@@ -188,8 +257,10 @@ export default function StatisticsScreen() {
     ...monthlyWorkRest.map((stat) => stat.restDays),
     5,
   );
-  const stackedBarMaxValue = Math.max(
-    ...monthlyShiftDistribution.map((stat) => stat.early + stat.mid + stat.late),
+  const shiftLineMaxValue = Math.max(
+    ...monthlyShiftDistribution.map((stat) => stat.early),
+    ...monthlyShiftDistribution.map((stat) => stat.mid),
+    ...monthlyShiftDistribution.map((stat) => stat.late),
     5,
   );
 
@@ -329,29 +400,115 @@ export default function StatisticsScreen() {
           />
 
           <View style={styles.chartShift}>
-            <BarChart
-              stackData={stackedBarData}
-              height={260}
-              width={containerWidth}
-              spacing={24}
-              initialSpacing={12}
-              barWidth={18}
-              yAxisColor="rgba(24, 25, 31, 0.06)"
-              yAxisThickness={1}
-              xAxisColor="rgba(24, 25, 31, 0.06)"
-              xAxisThickness={1}
-              showVerticalLines
-              verticalLinesColor="rgba(24, 25, 31, 0.08)"
-              labelTextStyle={styles.axisLabel}
-              xAxisLabelsHeight={32}
-              hideYAxisText={false}
-              formatYLabel={formatYAxisLabel}
-              stackBorderRadius={8}
-              maxValue={stackedBarMaxValue}
-              noOfSections={4}
-              showValuesAsTopLabel={false}
-              isAnimated
-            />
+            {shouldScrollLineChart ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                scrollEnabled
+                contentContainerStyle={{ width: lineChartWidth }}>
+                <LineChart
+                  data={earlyLineData}
+                  data2={midLineData}
+                  data3={lateLineData}
+                  height={lineChartHeight}
+                  width={lineChartWidth}
+                  spacing={lineChartSpacing}
+                  initialSpacing={lineChartSpacing / 2}
+                  endSpacing={lineChartSpacing / 2}
+                  maxValue={shiftLineMaxValue}
+                  noOfSections={4}
+                  showVerticalLines
+                  verticalLinesColor="rgba(24, 25, 31, 0.06)"
+                  verticalLinesStrokeDashArray={[3, 5]}
+                  xAxisLabelTexts={monthLabels}
+                  xAxisLabelTextStyle={styles.xAxisLabelText}
+                  xAxisColor="rgba(24, 25, 31, 0.06)"
+                  yAxisColor="rgba(24, 25, 31, 0.06)"
+                  formatYLabel={formatYAxisLabel}
+                  showDataPointsForMissingValues
+                  color1={EARLY_BAR_COLOR}
+                  color2={MID_BAR_COLOR}
+                  color3={LATE_BAR_COLOR}
+                  startFillColor={EARLY_FILL_START}
+                  endFillColor={EARLY_FILL_END}
+                  startFillColor2={MID_FILL_START}
+                  endFillColor2={MID_FILL_END}
+                  startFillColor3={LATE_FILL_START}
+                  endFillColor3={LATE_FILL_END}
+                  startOpacity={1}
+                  endOpacity={0}
+                  startOpacity2={1}
+                  endOpacity2={0}
+                  startOpacity3={1}
+                  endOpacity3={0}
+                  areaChart
+                  areaChart2
+                  areaChart3
+                  thickness={3}
+                  thickness2={3}
+                  thickness3={3}
+                  hideDataPoints
+                  hideDataPoints2
+                  hideDataPoints3
+                  textColor="rgba(24, 25, 31, 0.55)"
+                  textFontSize={12}
+                  isAnimated
+                  pointerConfig={shiftLinePointerConfig}
+                />
+              </ScrollView>
+            ) : (
+              <View style={[styles.chartStaticContainer, { width: containerWidth }]}>
+                <LineChart
+                  data={earlyLineData}
+                  data2={midLineData}
+                  data3={lateLineData}
+                  height={lineChartHeight}
+                  width={lineChartWidth}
+                  spacing={lineChartSpacing}
+                  initialSpacing={lineChartSpacing / 2}
+                  endSpacing={lineChartSpacing / 2}
+                  maxValue={shiftLineMaxValue}
+                  noOfSections={4}
+                  showVerticalLines
+                  verticalLinesColor="rgba(24, 25, 31, 0.06)"
+                  verticalLinesStrokeDashArray={[3, 5]}
+                  xAxisLabelTexts={monthLabels}
+                  xAxisLabelTextStyle={styles.xAxisLabelText}
+                  xAxisColor="rgba(24, 25, 31, 0.06)"
+                  yAxisColor="rgba(24, 25, 31, 0.06)"
+                  formatYLabel={formatYAxisLabel}
+                  showDataPointsForMissingValues
+                  color1={EARLY_BAR_COLOR}
+                  color2={MID_BAR_COLOR}
+                  color3={LATE_BAR_COLOR}
+                  startFillColor={EARLY_FILL_START}
+                  endFillColor={EARLY_FILL_END}
+                  startFillColor2={MID_FILL_START}
+                  endFillColor2={MID_FILL_END}
+                  startFillColor3={LATE_FILL_START}
+                  endFillColor3={LATE_FILL_END}
+                  startOpacity={1}
+                  endOpacity={0}
+                  startOpacity2={1}
+                  endOpacity2={0}
+                  startOpacity3={1}
+                  endOpacity3={0}
+                  areaChart
+                  areaChart2
+                  areaChart3
+                  thickness={3}
+                  thickness2={3}
+                  thickness3={3}
+                  hideDataPoints
+                  hideDataPoints2
+                  hideDataPoints3
+                  textColor="rgba(24, 25, 31, 0.55)"
+                  textFontSize={12}
+                  isAnimated
+                  pointerConfig={shiftLinePointerConfig}
+                />
+              </View>
+            )}
           </View>
 
           <Legend
@@ -597,10 +754,6 @@ const styles = StyleSheet.create({
   },
   xAxisLabelText: {
     textAlign: 'center',
-  },
-  axisLabel: {
-    fontSize: 11,
-    color: '#6B7280',
   },
   pointerDot: {
     width: 12,
