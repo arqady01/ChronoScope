@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { BarChart, LineChart } from 'react-native-gifted-charts';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -107,6 +107,7 @@ export default function StatisticsScreen() {
     ],
   }));
 
+  const lineChartHeight = 240;
   const lineChartSpacing = 50;
   const dataPointCount = monthlyWorkRest.length;
   const containerWidth = Math.max(width - 48, 260);
@@ -115,6 +116,65 @@ export default function StatisticsScreen() {
     : lineChartSpacing * 2;
   const lineChartWidth = lineChartContentWidth;
   const shouldScrollLineChart = lineChartWidth > containerWidth;
+  const pointerLabelRenderer = useCallback(
+    (
+      items: Array<{ value?: number }> | undefined,
+      _secondaryItem: unknown,
+      pointerIndex?: number,
+    ) => {
+      if (typeof pointerIndex !== 'number' || pointerIndex < 0) {
+        return null;
+      }
+      const stat = monthlyWorkRest[pointerIndex];
+      if (!stat) {
+        return null;
+      }
+
+      const workValue = items?.[0]?.value ?? stat.workDays;
+      const restValue = items?.[1]?.value ?? stat.restDays;
+
+      return (
+        <View style={styles.pointerLabelContainer}>
+          <Text style={styles.pointerLabelMonth}>{`${stat.month}月`}</Text>
+          <View style={styles.pointerLabelValueRow}>
+            <View style={[styles.pointerLabelDot, { backgroundColor: WORK_LINE_COLOR }]} />
+            <Text style={styles.pointerLabelValueText}>{`工作 ${Math.round(workValue)}天`}</Text>
+          </View>
+          <View style={styles.pointerLabelValueRow}>
+            <View style={[styles.pointerLabelDot, { backgroundColor: REST_LINE_COLOR }]} />
+            <Text style={styles.pointerLabelValueText}>{`休息 ${Math.round(restValue)}天`}</Text>
+          </View>
+        </View>
+      );
+    },
+    [monthlyWorkRest],
+  );
+
+  const lineChartPointerConfig = useMemo(
+    () => ({
+      pointerLabelComponent: pointerLabelRenderer,
+      pointerLabelWidth: 156,
+      pointerLabelHeight: 92,
+      autoAdjustPointerLabelPosition: true,
+      showPointerStrip: true,
+      pointerStripHeight: lineChartHeight,
+      pointerStripWidth: 2,
+      pointerStripColor: 'rgba(24, 25, 31, 0.14)',
+      pointerStripUptoDataPoint: true,
+      strokeDashArray: [4, 6],
+      pointerVanishDelay: 40,
+      pointerComponent: (_item: unknown, index: number) => (
+        <View
+          style={[
+            styles.pointerDot,
+            { borderColor: index === 0 ? WORK_LINE_COLOR : REST_LINE_COLOR },
+          ]}
+        />
+      ),
+      resetPointerIndexOnRelease: true,
+    }),
+    [pointerLabelRenderer, lineChartHeight],
+  );
   const formatYAxisLabel = (label: string) => {
     const numeric = Number(label);
     if (Number.isNaN(numeric)) {
@@ -167,7 +227,7 @@ export default function StatisticsScreen() {
                 <LineChart
                   data={workLineData}
                   data2={restLineData}
-                  height={240}
+                  height={lineChartHeight}
                   width={lineChartWidth}
                   spacing={lineChartSpacing}
                   initialSpacing={lineChartSpacing / 2}
@@ -202,6 +262,7 @@ export default function StatisticsScreen() {
                   textColor="rgba(24, 25, 31, 0.55)"
                   textFontSize={12}
                   isAnimated
+                  pointerConfig={lineChartPointerConfig}
                 />
               </ScrollView>
             ) : (
@@ -209,7 +270,7 @@ export default function StatisticsScreen() {
                 <LineChart
                   data={workLineData}
                   data2={restLineData}
-                  height={240}
+                  height={lineChartHeight}
                   width={lineChartWidth}
                   spacing={lineChartSpacing}
                   initialSpacing={lineChartSpacing / 2}
@@ -244,6 +305,7 @@ export default function StatisticsScreen() {
                   textColor="rgba(24, 25, 31, 0.55)"
                   textFontSize={12}
                   isAnimated
+                  pointerConfig={lineChartPointerConfig}
                 />
               </View>
             )}
@@ -539,5 +601,40 @@ const styles = StyleSheet.create({
   axisLabel: {
     fontSize: 11,
     color: '#6B7280',
+  },
+  pointerDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    backgroundColor: '#FFFFFF',
+  },
+  pointerLabelContainer: {
+    minWidth: 148,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
+    backgroundColor: '#18191F',
+    gap: 8,
+  },
+  pointerLabelMonth: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  pointerLabelValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pointerLabelDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  pointerLabelValueText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#FFFFFF',
   },
 });
