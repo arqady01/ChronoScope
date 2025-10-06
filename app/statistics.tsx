@@ -106,7 +106,8 @@ export default function StatisticsScreen() {
   const lineChartContentWidth = dataPointCount > 1
     ? lineChartSpacing * (dataPointCount - 1) + lineChartSpacing
     : lineChartSpacing * 2;
-  const lineChartWidth = Math.max(containerWidth, lineChartContentWidth);
+  const lineChartWidth = lineChartContentWidth;
+  const shouldScrollLineChart = lineChartWidth > containerWidth;
   const formatYAxisLabel = (label: string) => {
     const numeric = Number(label);
     if (Number.isNaN(numeric)) {
@@ -150,50 +151,95 @@ export default function StatisticsScreen() {
           />
 
           <View style={[styles.chartViewport, { width: containerWidth }]}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ width: lineChartWidth }}>
-              <LineChart
-                data={workLineData}
-                data2={restLineData}
-                height={240}
-                width={lineChartWidth}
-                spacing={lineChartSpacing}
-                initialSpacing={lineChartSpacing / 2}
-                endSpacing={lineChartSpacing / 2}
-                maxValue={lineChartMaxValue}
-                noOfSections={4}
-                showVerticalLines
-                verticalLinesColor="rgba(24, 25, 31, 0.06)"
-                verticalLinesStrokeDashArray={[3, 5]}
-                xAxisLabelTexts={monthLabels}
-                xAxisLabelTextStyle={styles.xAxisLabelText}
-                xAxisColor="rgba(24, 25, 31, 0.06)"
-                yAxisColor="rgba(24, 25, 31, 0.06)"
-                formatYLabel={formatYAxisLabel}
-                showDataPointsForMissingValues
-                color1={WORK_LINE_COLOR}
-                color2={REST_LINE_COLOR}
-                startFillColor="rgba(255, 138, 0, 0.28)"
-                endFillColor="rgba(255, 138, 0, 0.05)"
-                startOpacity={1}
-                endOpacity={0}
-                startFillColor2="rgba(46, 189, 89, 0.26)"
-                endFillColor2="rgba(46, 189, 89, 0.05)"
-                startOpacity2={1}
-                endOpacity2={0}
-                areaChart
-                areaChart2
-                thickness={3}
-                thickness2={3}
-                hideDataPoints
-                hideDataPoints2
-                textColor="rgba(24, 25, 31, 0.55)"
-                textFontSize={12}
-                isAnimated
-              />
-            </ScrollView>
+            {shouldScrollLineChart ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                scrollEnabled
+                contentContainerStyle={{ width: lineChartWidth }}>
+                <LineChart
+                  data={workLineData}
+                  data2={restLineData}
+                  height={240}
+                  width={lineChartWidth}
+                  spacing={lineChartSpacing}
+                  initialSpacing={lineChartSpacing / 2}
+                  endSpacing={lineChartSpacing / 2}
+                  maxValue={lineChartMaxValue}
+                  noOfSections={4}
+                  showVerticalLines
+                  verticalLinesColor="rgba(24, 25, 31, 0.06)"
+                  verticalLinesStrokeDashArray={[3, 5]}
+                  xAxisLabelTexts={monthLabels}
+                  xAxisLabelTextStyle={styles.xAxisLabelText}
+                  xAxisColor="rgba(24, 25, 31, 0.06)"
+                  yAxisColor="rgba(24, 25, 31, 0.06)"
+                  formatYLabel={formatYAxisLabel}
+                  showDataPointsForMissingValues
+                  color1={WORK_LINE_COLOR}
+                  color2={REST_LINE_COLOR}
+                  startFillColor="rgba(255, 138, 0, 0.28)"
+                  endFillColor="rgba(255, 138, 0, 0.05)"
+                  startOpacity={1}
+                  endOpacity={0}
+                  startFillColor2="rgba(46, 189, 89, 0.26)"
+                  endFillColor2="rgba(46, 189, 0.05)"
+                  startOpacity2={1}
+                  endOpacity2={0}
+                  areaChart
+                  areaChart2
+                  thickness={3}
+                  thickness2={3}
+                  hideDataPoints
+                  hideDataPoints2
+                  textColor="rgba(24, 25, 31, 0.55)"
+                  textFontSize={12}
+                  isAnimated
+                />
+              </ScrollView>
+            ) : (
+              <View style={[styles.chartStaticContainer, { width: containerWidth }]}>
+                <LineChart
+                  data={workLineData}
+                  data2={restLineData}
+                  height={240}
+                  width={lineChartWidth}
+                  spacing={lineChartSpacing}
+                  initialSpacing={lineChartSpacing / 2}
+                  endSpacing={lineChartSpacing / 2}
+                  maxValue={lineChartMaxValue}
+                  noOfSections={4}
+                  showVerticalLines
+                  verticalLinesColor="rgba(24, 25, 31, 0.06)"
+                  verticalLinesStrokeDashArray={[3, 5]}
+                  xAxisLabelTexts={monthLabels}
+                  xAxisLabelTextStyle={styles.xAxisLabelText}
+                  xAxisColor="rgba(24, 25, 31, 0.06)"
+                  yAxisColor="rgba(24, 25, 31, 0.06)"
+                  formatYLabel={formatYAxisLabel}
+                  showDataPointsForMissingValues
+                  color1={WORK_LINE_COLOR}
+                  color2={REST_LINE_COLOR}
+                  startFillColor="rgba(255, 138, 0, 0.28)"
+                  endFillColor="rgba(255, 138, 0, 0.05)"
+                  startOpacity={1}
+                  endOpacity={0}
+                  startFillColor2="rgba(46, 189, 89, 0.26)"
+                  endFillColor2="rgba(46, 189, 0.05)"
+                  startOpacity2={1}
+                  endOpacity2={0}
+                  areaChart
+                  areaChart2
+                  thickness={3}
+                  thickness2={3}
+                  hideDataPoints
+                  hideDataPoints2
+                  textColor="rgba(24, 25, 31, 0.55)"
+                  textFontSize={12}
+                  isAnimated
+                />
+              </View>
+            )}
           </View>
 
           <Legend
@@ -438,6 +484,10 @@ const styles = StyleSheet.create({
   chartViewport: {
     width: '100%',
     overflow: 'hidden',
+  },
+  chartStaticContainer: {
+    width: '100%',
+    alignItems: 'center',
   },
   chartShift: {
     marginLeft: 0,
