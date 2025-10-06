@@ -18,6 +18,8 @@ const REST_LINE_COLOR = SHIFT_CONFIG.off.accent;
 const EARLY_BAR_COLOR = SHIFT_CONFIG.early.accent;
 const MID_BAR_COLOR = SHIFT_CONFIG.mid.accent;
 const LATE_BAR_COLOR = SHIFT_CONFIG.late.accent;
+const DEMO_DATA_YEAR = 2025;
+const BASELINE_SEED_YEARS = [DEMO_DATA_YEAR, DEMO_DATA_YEAR - 1] as const;
 
 export default function StatisticsScreen() {
   const router = useRouter();
@@ -53,7 +55,12 @@ export default function StatisticsScreen() {
 
   const availableYears = useMemo(() => {
     const currentYear = new Date().getFullYear();
-    const seedYears = new Set<number>([currentYear, 2025]); // ensure charts show defaults before user edits
+    // Seed with demo data years plus the current/previous years so the selector always offers multiple choices.
+    const seeds: number[] = [currentYear, ...BASELINE_SEED_YEARS];
+    if (currentYear > 0) {
+      seeds.push(currentYear - 1);
+    }
+    const seedYears = new Set<number>(seeds);
 
     Object.keys(overrides).forEach((key) => {
       const year = Number(key.slice(0, 4));
@@ -342,19 +349,51 @@ type YearSelectorProps = {
 };
 
 function YearSelector({ years, value, onChange, compact = false }: YearSelectorProps) {
+  const resolvedIndex = (() => {
+    const index = years.indexOf(value);
+    if (index !== -1) {
+      return index;
+    }
+    return years.length > 0 ? years.length - 1 : 0;
+  })();
+
+  const hasPrevious = resolvedIndex > 0;
+  const hasNext = resolvedIndex < years.length - 1;
+  const displayYear = years[resolvedIndex] ?? value;
+
+  const stepYear = (direction: -1 | 1) => {
+    const nextIndex = resolvedIndex + direction;
+    if (nextIndex < 0 || nextIndex >= years.length) {
+      return;
+    }
+    onChange(years[nextIndex]);
+  };
+
   return (
     <View style={[styles.selectorRow, compact && styles.selectorRowCompact]}>
-      {years.map((year) => {
-        const isActive = year === value;
-        return (
-          <Pressable
-            key={year}
-            onPress={() => onChange(year)}
-            style={[styles.selectorChip, isActive && styles.selectorChipActive]}>
-            <Text style={[styles.selectorChipText, isActive && styles.selectorChipTextActive]}>{year}</Text>
-          </Pressable>
-        );
-      })}
+      <Pressable
+        hitSlop={8}
+        onPress={() => stepYear(-1)}
+        disabled={!hasPrevious}
+        style={({ pressed }) => [
+          styles.selectorArrowButton,
+          !hasPrevious && styles.selectorArrowButtonDisabled,
+          pressed && styles.selectorArrowButtonPressed,
+        ]}>
+        <Ionicons name="chevron-back" size={16} color={hasPrevious ? '#18191F' : '#9CA3AF'} />
+      </Pressable>
+      <Text style={styles.selectorYearLabel}>{displayYear}</Text>
+      <Pressable
+        hitSlop={8}
+        onPress={() => stepYear(1)}
+        disabled={!hasNext}
+        style={({ pressed }) => [
+          styles.selectorArrowButton,
+          !hasNext && styles.selectorArrowButtonDisabled,
+          pressed && styles.selectorArrowButtonPressed,
+        ]}>
+        <Ionicons name="chevron-forward" size={16} color={hasNext ? '#18191F' : '#9CA3AF'} />
+      </Pressable>
     </View>
   );
 }
@@ -439,28 +478,30 @@ const styles = StyleSheet.create({
   },
   selectorRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    alignItems: 'center',
+    gap: 12,
   },
   selectorRowCompact: {
     justifyContent: 'flex-end',
   },
-  selectorChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+  selectorArrowButton: {
+    width: 34,
+    height: 34,
     borderRadius: 12,
     backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  selectorChipActive: {
-    backgroundColor: '#18191F',
+  selectorArrowButtonPressed: {
+    backgroundColor: '#E5E7EB',
   },
-  selectorChipText: {
-    fontSize: 13,
-    color: '#4B5563',
+  selectorArrowButtonDisabled: {
+    opacity: 0.4,
   },
-  selectorChipTextActive: {
-    color: '#FFFFFF',
+  selectorYearLabel: {
+    fontSize: 16,
     fontWeight: '600',
+    color: '#18191F',
   },
   legendRow: {
     flexDirection: 'row',
