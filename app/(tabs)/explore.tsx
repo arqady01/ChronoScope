@@ -1,8 +1,10 @@
 import { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Fonts } from '@/constants/theme';
+
+import { useRouter } from 'expo-router';
 
 import {
   SHIFT_CONFIG,
@@ -84,6 +86,7 @@ function formatPercent(value: number, total: number): string {
 export default function ProfileScreen() {
   const { width } = useWindowDimensions();
   const { getScheduleForDate } = useSchedule();
+  const router = useRouter();
   const shiftCards = useMemo(() => buildShiftCardStats(getScheduleForDate), [getScheduleForDate]);
   const cardCount = shiftCards.length;
 
@@ -112,7 +115,9 @@ export default function ProfileScreen() {
         <View style={styles.statisticsCard}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>班次详细统计</Text>
-            <Text style={styles.cardLink}>View all</Text>
+            <Pressable hitSlop={8} onPress={() => router.push('/statistics')}>
+              <Text style={styles.cardLink}>View all</Text>
+            </Pressable>
           </View>
 
           <View
