@@ -13,6 +13,7 @@ import {
   SHIFT_CONFIG,
   SHIFT_OPTIONS,
   buildCalendarDays,
+  formatShiftTimeRange,
   formatDateKey,
   type DaySchedule,
   type ShiftTimeMap,
@@ -49,11 +50,10 @@ export default function HomeScreen() {
   const handleShiftChange = (shift: ShiftType) => {
     const config = SHIFT_CONFIG[shift];
     const customTime = shiftTimes[shift];
+    const formattedCustom = formatShiftTimeRange(customTime);
     const defaultTime = shift === 'off'
       ? null
-      : customTime === null
-        ? null
-        : customTime ?? config.defaultTime;
+      : formattedCustom ?? config.defaultTime;
     updateOverride(selectedDateKey, (prev) => ({
       ...(prev ?? {}),
       shift,
@@ -187,9 +187,7 @@ function DayDetailsCard({
   const resolvedDefaultTime =
     schedule.shift === 'off'
       ? ''
-      : shiftTimes[schedule.shift] === null
-        ? ''
-        : shiftTimes[schedule.shift] ?? shiftConfig.defaultTime ?? '';
+      : formatShiftTimeRange(shiftTimes[schedule.shift]) ?? shiftConfig.defaultTime ?? '';
   const summaryTime = schedule.shiftTime ?? resolvedDefaultTime;
   const summaryLabel =
     schedule.shift === 'off'

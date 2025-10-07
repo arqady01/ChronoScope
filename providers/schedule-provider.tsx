@@ -4,9 +4,12 @@ import {
   DEFAULT_COLLEAGUES,
   DEFAULT_SHIFT_TIMES,
   buildDaySchedule,
+  cloneShiftTimeMap,
+  cloneShiftTimeValue,
   parseDateKey,
   type DaySchedule,
   type ShiftTimeMap,
+  type ShiftTimeValue,
   type ShiftType,
 } from '@/lib/schedule';
 
@@ -20,7 +23,8 @@ type ScheduleContextValue = {
   ) => void;
   getScheduleForDate: (key: string, date?: Date) => DaySchedule;
   shiftTimes: ShiftTimeMap;
-  setShiftTime: (shift: Exclude<ShiftType, 'off'>, value: string) => void;
+  setShiftTime: (shift: Exclude<ShiftType, 'off'>, value: ShiftTimeValue) => void;
+  resetShiftTimes: () => void;
   colleaguePool: string[];
   addColleague: (name: string) => void;
   updateColleague: (index: number, name: string) => void;
@@ -32,7 +36,7 @@ const ScheduleContext = createContext<ScheduleContextValue | undefined>(undefine
 
 export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [overrides, setOverrides] = useState<ScheduleOverrides>({});
-  const [shiftTimes, setShiftTimes] = useState<ShiftTimeMap>(() => ({ ...DEFAULT_SHIFT_TIMES }));
+  const [shiftTimes, setShiftTimes] = useState<ShiftTimeMap>(() => cloneShiftTimeMap(DEFAULT_SHIFT_TIMES));
   const [colleaguePool, setColleaguePool] = useState<string[]>(() => [...DEFAULT_COLLEAGUES]);
 
   const updateOverride = useCallback(
@@ -61,18 +65,37 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const setShiftTime = useCallback((shift: Exclude<ShiftType, 'off'>, value: string) => {
+  const setShiftTime = useCallback((shift: Exclude<ShiftType, 'off'>, value: ShiftTimeValue) => {
     setShiftTimes((prev) => {
-      const sanitized = value.trim();
-      const nextValue = sanitized.length > 0 ? sanitized : null;
-      if (prev[shift] === nextValue) {
+      const nextValue = cloneShiftTimeValue(value);
+      const currentValue = prev[shift];
+
+      const hasChanged = (() => {
+        if (!currentValue && !nextValue) {
+          return false;
+        }
+        if (!currentValue || !nextValue) {
+          return true;
+        }
+        return (
+          currentValue.start !== nextValue.start ||
+          currentValue.end !== nextValue.end
+        );
+      })();
+
+      if (!hasChanged) {
         return prev;
       }
+
       return {
         ...prev,
         [shift]: nextValue,
       };
     });
+  }, []);
+
+  const resetShiftTimes = useCallback(() => {
+    setShiftTimes(cloneShiftTimeMap(DEFAULT_SHIFT_TIMES));
   }, []);
 
   const addColleague = useCallback((name: string) => {
@@ -135,6 +158,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       getScheduleForDate,
       shiftTimes,
       setShiftTime,
+      resetShiftTimes,
       colleaguePool,
       addColleague,
       updateColleague,
@@ -147,6 +171,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       getScheduleForDate,
       shiftTimes,
       setShiftTime,
+      resetShiftTimes,
       colleaguePool,
       addColleague,
       updateColleague,

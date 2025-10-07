@@ -1,4 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
@@ -9,9 +10,17 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { TimerPickerModal } from 'react-native-timer-picker';
 
 import { Fonts } from '@/constants/theme';
-import { DEFAULT_COLLEAGUES, SHIFT_CONFIG, type ShiftType } from '@/lib/schedule';
+import {
+  DEFAULT_COLLEAGUES,
+  DEFAULT_SHIFT_TIMES,
+  SHIFT_CONFIG,
+  type ShiftTimeMap,
+  type ShiftTimeRange,
+  type ShiftType,
+} from '@/lib/schedule';
 import { useSchedule } from '@/providers/schedule-provider';
 
 type EditableShift = Exclude<ShiftType, 'off'>;
@@ -27,12 +36,18 @@ const EDITABLE_SHIFTS: ShiftField[] = [
   { key: 'late', label: SHIFT_CONFIG.late.label },
 ];
 
-type ShiftDraftMap = Record<EditableShift, string>;
+type ShiftDraftMap = Record<EditableShift, ShiftTimeRange>;
+
+type PickerTarget = {
+  shift: EditableShift;
+  field: keyof ShiftTimeRange;
+};
 
 export default function SettingsScreen() {
   const {
     shiftTimes,
     setShiftTime,
+    resetShiftTimes,
     colleaguePool,
     addColleague,
     updateColleague,
@@ -40,22 +55,13 @@ export default function SettingsScreen() {
     resetColleagues,
   } = useSchedule();
 
-  const [shiftDrafts, setShiftDrafts] = useState<ShiftDraftMap>(() =>
-    EDITABLE_SHIFTS.reduce<ShiftDraftMap>((acc, { key }) => {
-      acc[key] = shiftTimes[key] ?? '';
-      return acc;
-    }, { early: '', mid: '', late: '' }),
-  );
+  const [shiftDrafts, setShiftDrafts] = useState<ShiftDraftMap>(() => buildShiftDrafts(shiftTimes));
+  const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null);
   const [draftColleagues, setDraftColleagues] = useState(colleaguePool);
   const [newColleagueName, setNewColleagueName] = useState('');
 
   useEffect(() => {
-    setShiftDrafts(
-      EDITABLE_SHIFTS.reduce<ShiftDraftMap>((acc, { key }) => {
-        acc[key] = shiftTimes[key] ?? '';
-        return acc;
-      }, { early: '', mid: '', late: '' }),
-    );
+    setShiftDrafts(buildShiftDrafts(shiftTimes));
   }, [shiftTimes]);
 
   useEffect(() => {
@@ -63,6 +69,27 @@ export default function SettingsScreen() {
   }, [colleaguePool]);
 
   const canAddColleague = useMemo(() => newColleagueName.trim().length > 0, [newColleagueName]);
+
+  const openTimePicker = (shift: EditableShift, field: keyof ShiftTimeRange) => {
+    setPickerTarget({ shift, field });
+  };
+
+  const closeTimePicker = () => {
+    setPickerTarget(null);
+  };
+
+  const pickerInitialValue = useMemo(() => {
+    if (!pickerTarget) {
+      return { hours: 0, minutes: 0 };
+    }
+    const range = shiftDrafts[pickerTarget.shift];
+    const timeString = range?.[pickerTarget.field];
+    return parseTimeString(timeString);
+  }, [pickerTarget, shiftDrafts]);
+
+  const pickerTitle = pickerTarget
+    ? `${SHIFT_CONFIG[pickerTarget.shift].label}${pickerTarget.field === 'start' ? '开始时间' : '结束时间'}`
+    : '';
 
   const handleColleagueBlur = (index: number) => {
     const currentValue = draftColleagues[index] ?? '';
@@ -83,16 +110,8 @@ export default function SettingsScreen() {
   };
 
   const handleResetShiftTimes = () => {
-    EDITABLE_SHIFTS.forEach(({ key }) => {
-      const defaultTime = SHIFT_CONFIG[key].defaultTime ?? '';
-      setShiftTime(key, defaultTime);
-    });
-    setShiftDrafts(
-      EDITABLE_SHIFTS.reduce<ShiftDraftMap>((acc, { key }) => {
-        acc[key] = SHIFT_CONFIG[key].defaultTime ?? '';
-        return acc;
-      }, { early: '', mid: '', late: '' }),
-    );
+    resetShiftTimes();
+    setShiftDrafts(buildShiftDrafts(DEFAULT_SHIFT_TIMES));
   };
 
   const handleAddColleague = () => {
@@ -104,6 +123,26 @@ export default function SettingsScreen() {
     addColleague(trimmed);
     setDraftColleagues((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed]));
     setNewColleagueName('');
+  };
+
+  const handleTimeConfirm = ({ hours = 0, minutes = 0 }: { hours?: number; minutes?: number; seconds?: number }) => {
+    if (!pickerTarget) {
+      return;
+    }
+
+    const formatted = formatTimeValue(hours, minutes);
+    const currentRange = shiftDrafts[pickerTarget.shift];
+    const nextRange: ShiftTimeRange = {
+      ...currentRange,
+      [pickerTarget.field]: formatted,
+    };
+
+    setShiftDrafts((prev) => ({
+      ...prev,
+      [pickerTarget.shift]: nextRange,
+    }));
+    setShiftTime(pickerTarget.shift, nextRange);
+    closeTimePicker();
   };
 
   return (
@@ -121,26 +160,21 @@ export default function SettingsScreen() {
           {EDITABLE_SHIFTS.map(({ key, label }) => (
             <View key={key} style={styles.shiftRow}>
               <Text style={styles.shiftLabel}>{label}</Text>
-              <TextInput
-                value={shiftDrafts[key]}
-                onChangeText={(text) =>
-                  setShiftDrafts((prev) => ({
-                    ...prev,
-                    [key]: text,
-                  }))
-                }
-                onBlur={() => {
-                  const trimmed = shiftDrafts[key].trim();
-                  setShiftDrafts((prev) => ({
-                    ...prev,
-                    [key]: trimmed,
-                  }));
-                  setShiftTime(key, trimmed);
-                }}
-                placeholder="例如 07:30 - 14:30"
-                placeholderTextColor="#B1B6BF"
-                style={styles.shiftInput}
-              />
+              <View style={styles.shiftTimeGroup}>
+                <Pressable
+                  style={styles.timeInput}
+                  onPress={() => openTimePicker(key, 'start')}
+                  hitSlop={6}>
+                  <Text style={styles.timeInputText}>{shiftDrafts[key].start}</Text>
+                </Pressable>
+                <Text style={styles.timeSeparator}>至</Text>
+                <Pressable
+                  style={styles.timeInput}
+                  onPress={() => openTimePicker(key, 'end')}
+                  hitSlop={6}>
+                  <Text style={styles.timeInputText}>{shiftDrafts[key].end}</Text>
+                </Pressable>
+              </View>
             </View>
           ))}
         </View>
@@ -203,6 +237,30 @@ export default function SettingsScreen() {
           </View>
         </View>
       </ScrollView>
+
+      <TimerPickerModal
+        visible={pickerTarget !== null}
+        setIsVisible={(visible) => {
+          if (!visible) {
+            closeTimePicker();
+          }
+        }}
+        onConfirm={handleTimeConfirm}
+        onCancel={closeTimePicker}
+        modalTitle={pickerTitle}
+        hideSeconds
+        hideDays
+        initialValue={{ ...pickerInitialValue, seconds: 0 }}
+        hourLabel="时"
+        minuteLabel="分"
+        confirmButtonText="确定"
+        cancelButtonText="取消"
+        closeOnOverlayPress
+        LinearGradient={LinearGradient}
+        styles={{
+          theme: 'light',
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -262,16 +320,32 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2F2F2F',
   },
-  shiftInput: {
+  shiftTimeGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  timeInput: {
     flex: 1,
     borderWidth: 1,
     borderColor: 'rgba(82, 54, 235, 0.25)',
     borderRadius: 12,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 15,
-    color: '#18191F',
     backgroundColor: '#F7F8FD',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timeInputText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#18191F',
+  },
+  timeSeparator: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#7A7C85',
   },
   colleagueRow: {
     flexDirection: 'row',
@@ -340,3 +414,62 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 });
+
+function buildShiftDrafts(map: ShiftTimeMap): ShiftDraftMap {
+  return EDITABLE_SHIFTS.reduce<ShiftDraftMap>((acc, { key }) => {
+    acc[key] = ensureShiftRange(map[key], key);
+    return acc;
+  }, {} as ShiftDraftMap);
+}
+
+function ensureShiftRange(value: ShiftTimeRange | null | undefined, shift: EditableShift): ShiftTimeRange {
+  if (value && value.start && value.end) {
+    return { ...value };
+  }
+
+  const defaultRange = (DEFAULT_SHIFT_TIMES[shift] as ShiftTimeRange | null) ?? null;
+  if (defaultRange && defaultRange.start && defaultRange.end) {
+    return { ...defaultRange };
+  }
+
+  return parseDefaultFromConfig(shift);
+}
+
+function parseDefaultFromConfig(shift: EditableShift): ShiftTimeRange {
+  const defaultTime = SHIFT_CONFIG[shift].defaultTime;
+  if (defaultTime) {
+    const [startRaw, endRaw] = defaultTime.split('-');
+    const start = startRaw?.trim();
+    const end = endRaw?.trim();
+    if (start && end) {
+      return { start, end };
+    }
+  }
+  return { start: '00:00', end: '00:00' };
+}
+
+function parseTimeString(value?: string) {
+  if (!value) {
+    return { hours: 0, minutes: 0 };
+  }
+  const [hourRaw, minuteRaw] = value.split(':');
+  const hours = Number.parseInt(hourRaw ?? '0', 10);
+  const minutes = Number.parseInt(minuteRaw ?? '0', 10);
+  return {
+    hours: clamp(hours, 0, 23),
+    minutes: clamp(minutes, 0, 59),
+  };
+}
+
+function formatTimeValue(hours: number, minutes: number) {
+  const safeHours = clamp(hours, 0, 23);
+  const safeMinutes = clamp(minutes, 0, 59);
+  return `${safeHours.toString().padStart(2, '0')}:${safeMinutes.toString().padStart(2, '0')}`;
+}
+
+function clamp(value: number, min: number, max: number) {
+  if (Number.isNaN(value)) {
+    return min;
+  }
+  return Math.min(Math.max(value, min), max);
+}

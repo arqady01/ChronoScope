@@ -32,7 +32,14 @@ export type CalendarDay = {
   isCurrentMonth: boolean;
 };
 
-export type ShiftTimeMap = Record<ShiftType, string | null>;
+export type ShiftTimeRange = {
+  start: string;
+  end: string;
+};
+
+export type ShiftTimeValue = ShiftTimeRange | null;
+
+export type ShiftTimeMap = Record<ShiftType, ShiftTimeValue>;
 
 export const SHIFT_CONFIG: Record<ShiftType, ShiftVisualConfig> = {
   early: {
@@ -71,11 +78,15 @@ export const SHIFT_CONFIG: Record<ShiftType, ShiftVisualConfig> = {
 
 export const SHIFT_OPTIONS: ShiftType[] = ['off', 'early', 'mid', 'late'];
 
+const EARLY_FALLBACK: ShiftTimeRange = { start: '07:30', end: '14:30' };
+const MID_FALLBACK: ShiftTimeRange = { start: '16:00', end: '22:30' };
+const LATE_FALLBACK: ShiftTimeRange = { start: '22:30', end: '08:30' };
+
 export const DEFAULT_SHIFT_TIMES: ShiftTimeMap = {
-  early: SHIFT_CONFIG.early.defaultTime,
-  mid: SHIFT_CONFIG.mid.defaultTime,
-  late: SHIFT_CONFIG.late.defaultTime,
-  off: SHIFT_CONFIG.off.defaultTime,
+  early: parseTimeRange(SHIFT_CONFIG.early.defaultTime) ?? { ...EARLY_FALLBACK },
+  mid: parseTimeRange(SHIFT_CONFIG.mid.defaultTime) ?? { ...MID_FALLBACK },
+  late: parseTimeRange(SHIFT_CONFIG.late.defaultTime) ?? { ...LATE_FALLBACK },
+  off: null,
 };
 
 export const DEFAULT_COLLEAGUES: string[] = [];
@@ -181,21 +192,65 @@ export function deriveColleagues(day: number, pool: string[] = DEFAULT_COLLEAGUE
   return Array.from({ length: count }, (_, idx) => pool[(startIndex + idx) % pool.length]);
 }
 
+export function formatShiftTimeRange(range: ShiftTimeValue): string | null {
+  if (!range) {
+    return null;
+  }
+  if (!range.start || !range.end) {
+    return null;
+  }
+  return `${range.start} - ${range.end}`;
+}
+
+export function cloneShiftTimeValue(value: ShiftTimeValue): ShiftTimeValue {
+  if (!value) {
+    return null;
+  }
+  return { ...value };
+}
+
+export function cloneShiftTimeMap(map: ShiftTimeMap): ShiftTimeMap {
+  return {
+    early: cloneShiftTimeValue(map.early),
+    mid: cloneShiftTimeValue(map.mid),
+    late: cloneShiftTimeValue(map.late),
+    off: cloneShiftTimeValue(map.off),
+  };
+}
+
 function computeDefaultShiftTime(shift: ShiftType, overrides?: Partial<ShiftTimeMap>): string | null {
   if (shift === 'off') {
     return null;
   }
 
-  if (overrides && Object.prototype.hasOwnProperty.call(overrides, shift)) {
-    return overrides[shift] ?? null;
+  const overrideValue = overrides?.[shift];
+  if (overrideValue !== undefined) {
+    return formatShiftTimeRange(overrideValue) ?? SHIFT_CONFIG[shift].defaultTime;
   }
 
   const fallback = DEFAULT_SHIFT_TIMES[shift];
-  if (fallback !== undefined) {
-    return fallback;
+  const formatted = formatShiftTimeRange(fallback);
+  if (formatted) {
+    return formatted;
   }
 
   return SHIFT_CONFIG[shift].defaultTime;
+}
+
+function parseTimeRange(value: string | null | undefined): ShiftTimeRange | null {
+  if (!value) {
+    return null;
+  }
+  const [startRaw, endRaw] = value.split('-');
+  if (!startRaw || !endRaw) {
+    return null;
+  }
+  const start = startRaw.trim();
+  const end = endRaw.trim();
+  if (!start || !end) {
+    return null;
+  }
+  return { start, end };
 }
 
 function deriveTasks(date: Date): Task[] {
