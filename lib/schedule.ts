@@ -32,6 +32,8 @@ export type CalendarDay = {
   isCurrentMonth: boolean;
 };
 
+export type ShiftTimeMap = Record<ShiftType, string | null>;
+
 export const SHIFT_CONFIG: Record<ShiftType, ShiftVisualConfig> = {
   early: {
     label: '早班',
@@ -69,7 +71,25 @@ export const SHIFT_CONFIG: Record<ShiftType, ShiftVisualConfig> = {
 
 export const SHIFT_OPTIONS: ShiftType[] = ['off', 'early', 'mid', 'late'];
 
-const COLLEAGUES = ['李晓', '张明华', '王思雅', '蔡敏', '骆晓丹', '吴大雨', '诸葛靓', '庞觉', '陈意航', '周启航'];
+export const DEFAULT_SHIFT_TIMES: ShiftTimeMap = {
+  early: SHIFT_CONFIG.early.defaultTime,
+  mid: SHIFT_CONFIG.mid.defaultTime,
+  late: SHIFT_CONFIG.late.defaultTime,
+  off: SHIFT_CONFIG.off.defaultTime,
+};
+
+export const DEFAULT_COLLEAGUES = [
+  '李晓',
+  '张明华',
+  '王思雅',
+  '蔡敏',
+  '骆晓丹',
+  '吴大雨',
+  '诸葛靓',
+  '庞觉',
+  '陈意航',
+  '周启航',
+];
 
 const BASE_SCHEDULE: Record<string, Partial<DaySchedule>> = {
   '2025-09-02': {
@@ -93,6 +113,11 @@ const BASE_SCHEDULE: Record<string, Partial<DaySchedule>> = {
   '2025-09-22': {
     tasks: [{ id: 'task-2025-09-22-1', title: '月末库存盘点', timeRange: '17:00', description: '与仓储组核对耗材数量。' }],
   },
+};
+
+export type ScheduleBuildOptions = {
+  shiftTimes?: Partial<ShiftTimeMap>;
+  colleaguePool?: string[];
 };
 
 export function buildCalendarDays(monthDate: Date): CalendarDay[] {
@@ -120,17 +145,26 @@ export function buildCalendarDays(monthDate: Date): CalendarDay[] {
   });
 }
 
-export function buildDaySchedule(key: string, date: Date, override?: Partial<DaySchedule>): DaySchedule {
+export function buildDaySchedule(
+  key: string,
+  date: Date,
+  override?: Partial<DaySchedule>,
+  options?: ScheduleBuildOptions,
+): DaySchedule {
   const base = BASE_SCHEDULE[key] ?? {};
   const shift = override?.shift ?? base.shift ?? 'off';
   const shiftConfig = SHIFT_CONFIG[shift];
+  const effectiveShiftTimes = options?.shiftTimes;
+  const effectiveColleaguePool = options?.colleaguePool;
+  const defaultTime = computeDefaultShiftTime(shift, effectiveShiftTimes);
+  const autoColleagues = deriveColleagues(date.getDate(), effectiveColleaguePool);
 
   return {
     key,
     date,
     shift,
-    shiftTime: override?.shiftTime ?? base.shiftTime ?? shiftConfig.defaultTime,
-    colleagues: override?.colleagues ?? base.colleagues ?? deriveColleagues(date.getDate()),
+    shiftTime: override?.shiftTime ?? base.shiftTime ?? defaultTime,
+    colleagues: override?.colleagues ?? base.colleagues ?? autoColleagues,
     tasks: override?.tasks ?? base.tasks ?? deriveTasks(date),
     notes: override?.notes ?? base.notes,
   };
@@ -148,10 +182,31 @@ export function parseDateKey(key: string) {
   return new Date(year, (month ?? 1) - 1, day ?? 1);
 }
 
-function deriveColleagues(day: number): string[] {
+export function deriveColleagues(day: number, pool: string[] = DEFAULT_COLLEAGUES): string[] {
+  if (!pool || pool.length === 0) {
+    return [];
+  }
+
   const count = day % 4 === 0 ? 2 : 3;
-  const startIndex = (day * 2) % COLLEAGUES.length;
-  return Array.from({ length: count }, (_, idx) => COLLEAGUES[(startIndex + idx) % COLLEAGUES.length]);
+  const startIndex = (day * 2) % pool.length;
+  return Array.from({ length: count }, (_, idx) => pool[(startIndex + idx) % pool.length]);
+}
+
+function computeDefaultShiftTime(shift: ShiftType, overrides?: Partial<ShiftTimeMap>): string | null {
+  if (shift === 'off') {
+    return null;
+  }
+
+  if (overrides && Object.prototype.hasOwnProperty.call(overrides, shift)) {
+    return overrides[shift] ?? null;
+  }
+
+  const fallback = DEFAULT_SHIFT_TIMES[shift];
+  if (fallback !== undefined) {
+    return fallback;
+  }
+
+  return SHIFT_CONFIG[shift].defaultTime;
 }
 
 function deriveTasks(date: Date): Task[] {

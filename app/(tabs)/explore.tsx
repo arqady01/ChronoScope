@@ -159,9 +159,9 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <View style={styles.simpleCard}>
+        <Pressable style={styles.simpleCard} onPress={() => router.push('/settings')} hitSlop={8}>
           <Text style={styles.simpleCardTitle}>设置</Text>
-        </View>
+        </Pressable>
 
         <View style={styles.linksCard}>
           {LINK_ITEMS.map((item, index) => (

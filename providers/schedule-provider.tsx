@@ -1,6 +1,14 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
-import { buildDaySchedule, parseDateKey, type DaySchedule } from '@/lib/schedule';
+import {
+  DEFAULT_COLLEAGUES,
+  DEFAULT_SHIFT_TIMES,
+  buildDaySchedule,
+  parseDateKey,
+  type DaySchedule,
+  type ShiftTimeMap,
+  type ShiftType,
+} from '@/lib/schedule';
 
 type ScheduleOverrides = Record<string, Partial<DaySchedule>>;
 
@@ -11,12 +19,21 @@ type ScheduleContextValue = {
     updater: (prev: Partial<DaySchedule> | undefined) => Partial<DaySchedule> | undefined
   ) => void;
   getScheduleForDate: (key: string, date?: Date) => DaySchedule;
+  shiftTimes: ShiftTimeMap;
+  setShiftTime: (shift: Exclude<ShiftType, 'off'>, value: string) => void;
+  colleaguePool: string[];
+  addColleague: (name: string) => void;
+  updateColleague: (index: number, name: string) => void;
+  removeColleague: (index: number) => void;
+  resetColleagues: () => void;
 };
 
 const ScheduleContext = createContext<ScheduleContextValue | undefined>(undefined);
 
 export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [overrides, setOverrides] = useState<ScheduleOverrides>({});
+  const [shiftTimes, setShiftTimes] = useState<ShiftTimeMap>(() => ({ ...DEFAULT_SHIFT_TIMES }));
+  const [colleaguePool, setColleaguePool] = useState<string[]>(() => [...DEFAULT_COLLEAGUES]);
 
   const updateOverride = useCallback(
     (
@@ -44,9 +61,71 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const setShiftTime = useCallback((shift: Exclude<ShiftType, 'off'>, value: string) => {
+    setShiftTimes((prev) => {
+      const sanitized = value.trim();
+      const nextValue = sanitized.length > 0 ? sanitized : null;
+      if (prev[shift] === nextValue) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [shift]: nextValue,
+      };
+    });
+  }, []);
+
+  const addColleague = useCallback((name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      return;
+    }
+    setColleaguePool((prev) => {
+      if (prev.includes(trimmed)) {
+        return prev;
+      }
+      return [...prev, trimmed];
+    });
+  }, []);
+
+  const updateColleague = useCallback((index: number, name: string) => {
+    setColleaguePool((prev) => {
+      if (!prev[index]) {
+        return prev;
+      }
+
+      const trimmed = name.trim();
+      if (!trimmed) {
+        return prev.filter((_, idx) => idx !== index);
+      }
+
+      const duplicateIndex = prev.findIndex((existing) => existing === trimmed);
+      if (duplicateIndex !== -1 && duplicateIndex !== index) {
+        const filtered = prev.filter((_, idx) => idx !== index);
+        return filtered;
+      }
+
+      const next = [...prev];
+      next[index] = trimmed;
+      return next;
+    });
+  }, []);
+
+  const removeColleague = useCallback((index: number) => {
+    setColleaguePool((prev) => prev.filter((_, idx) => idx !== index));
+  }, []);
+
+  const resetColleagues = useCallback(() => {
+    setColleaguePool(() => [...DEFAULT_COLLEAGUES]);
+  }, []);
+
   const getScheduleForDate = useCallback(
-    (key: string, date?: Date) => buildDaySchedule(key, date ?? parseDateKey(key), overrides[key]),
-    [overrides],
+    (key: string, date?: Date) =>
+      buildDaySchedule(key, date ?? parseDateKey(key), overrides[key], {
+        shiftTimes,
+        colleaguePool,
+      }),
+    [overrides, shiftTimes, colleaguePool],
   );
 
   const value = useMemo(
@@ -54,8 +133,26 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       overrides,
       updateOverride,
       getScheduleForDate,
+      shiftTimes,
+      setShiftTime,
+      colleaguePool,
+      addColleague,
+      updateColleague,
+      removeColleague,
+      resetColleagues,
     }),
-    [overrides, updateOverride, getScheduleForDate],
+    [
+      overrides,
+      updateOverride,
+      getScheduleForDate,
+      shiftTimes,
+      setShiftTime,
+      colleaguePool,
+      addColleague,
+      updateColleague,
+      removeColleague,
+      resetColleagues,
+    ],
   );
 
   return <ScheduleContext.Provider value={value}>{children}</ScheduleContext.Provider>;

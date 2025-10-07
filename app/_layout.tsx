@@ -23,6 +23,7 @@ export default function RootLayout() {
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+            <Stack.Screen name="settings" options={{ title: '设置', headerShadowVisible: false }} />
             <Stack.Screen name="statistics" options={{ headerShown: false, title: '统计总览' }} />
           </Stack>
           <StatusBar style="auto" />

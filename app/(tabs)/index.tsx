@@ -13,9 +13,9 @@ import {
   SHIFT_CONFIG,
   SHIFT_OPTIONS,
   buildCalendarDays,
-  buildDaySchedule,
   formatDateKey,
   type DaySchedule,
+  type ShiftTimeMap,
   type ShiftType,
 } from '@/lib/schedule';
 import { useSchedule } from '@/providers/schedule-provider';
@@ -26,7 +26,7 @@ export default function HomeScreen() {
   const initialMonth = useMemo(() => new Date(2025, 8, 1), []); // 2025-09
   const [currentMonth, setCurrentMonth] = useState<Date>(initialMonth);
   const [selectedDateKey, setSelectedDateKey] = useState<string>('2025-09-08');
-  const { overrides, updateOverride, getScheduleForDate } = useSchedule();
+  const { updateOverride, getScheduleForDate, shiftTimes } = useSchedule();
 
   const calendarDays = useMemo(() => buildCalendarDays(currentMonth), [currentMonth]);
 
@@ -34,11 +34,11 @@ export default function HomeScreen() {
     const map: Record<string, DaySchedule> = {};
 
     calendarDays.forEach(({ key, date }) => {
-      map[key] = buildDaySchedule(key, date, overrides[key]);
+      map[key] = getScheduleForDate(key, date);
     });
 
     return map;
-  }, [calendarDays, overrides]);
+  }, [calendarDays, getScheduleForDate]);
 
   const selectedSchedule = scheduleByDay[selectedDateKey] ?? getScheduleForDate(selectedDateKey);
 
@@ -48,10 +48,16 @@ export default function HomeScreen() {
 
   const handleShiftChange = (shift: ShiftType) => {
     const config = SHIFT_CONFIG[shift];
+    const customTime = shiftTimes[shift];
+    const defaultTime = shift === 'off'
+      ? null
+      : customTime === null
+        ? null
+        : customTime ?? config.defaultTime;
     updateOverride(selectedDateKey, (prev) => ({
       ...(prev ?? {}),
       shift,
-      shiftTime: shift === 'off' ? null : config.defaultTime,
+      shiftTime: defaultTime,
     }));
   };
 
@@ -144,7 +150,11 @@ export default function HomeScreen() {
           ))}
         </View>
 
-        <DayDetailsCard schedule={selectedSchedule} onShiftChange={handleShiftChange} />
+        <DayDetailsCard
+          schedule={selectedSchedule}
+          onShiftChange={handleShiftChange}
+          shiftTimes={shiftTimes}
+        />
       </ScrollView>
     </SafeAreaView>
   );
@@ -163,9 +173,28 @@ function IconButton({ icon, onPress }: IconButtonProps) {
   );
 }
 
-function DayDetailsCard({ schedule, onShiftChange }: { schedule: DaySchedule; onShiftChange: (shift: ShiftType) => void }) {
+function DayDetailsCard({
+  schedule,
+  onShiftChange,
+  shiftTimes,
+}: {
+  schedule: DaySchedule;
+  onShiftChange: (shift: ShiftType) => void;
+  shiftTimes: ShiftTimeMap;
+}) {
   const shiftConfig = SHIFT_CONFIG[schedule.shift];
   const dateLabel = formatChineseDate(schedule.date);
+  const resolvedDefaultTime =
+    schedule.shift === 'off'
+      ? ''
+      : shiftTimes[schedule.shift] === null
+        ? ''
+        : shiftTimes[schedule.shift] ?? shiftConfig.defaultTime ?? '';
+  const summaryTime = schedule.shiftTime ?? resolvedDefaultTime;
+  const summaryLabel =
+    schedule.shift === 'off'
+      ? '休息日'
+      : `${shiftConfig.label}${summaryTime ? ` ${summaryTime}` : ''}`;
 
   return (
     <View style={styles.detailsCard}>
@@ -201,7 +230,7 @@ function DayDetailsCard({ schedule, onShiftChange }: { schedule: DaySchedule; on
 
       <View style={[styles.shiftSummary, { backgroundColor: shiftConfig.softBackground }]}> 
         <Text style={[styles.shiftSummaryText, { color: shiftConfig.textColor }]}> 
-          {schedule.shift === 'off' ? '休息日' : `${shiftConfig.label} ${schedule.shiftTime ?? shiftConfig.defaultTime ?? ''}`}
+          {summaryLabel}
         </Text>
       </View>
 
