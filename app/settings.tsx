@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 
 import { Fonts } from '@/constants/theme';
 import { DEFAULT_COLLEAGUES, SHIFT_CONFIG, type ShiftType } from '@/lib/schedule';
@@ -107,6 +108,7 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="dark" backgroundColor="#F4F6FC" />
       <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>

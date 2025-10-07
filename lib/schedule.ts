@@ -78,18 +78,7 @@ export const DEFAULT_SHIFT_TIMES: ShiftTimeMap = {
   off: SHIFT_CONFIG.off.defaultTime,
 };
 
-export const DEFAULT_COLLEAGUES = [
-  '李晓',
-  '张明华',
-  '王思雅',
-  '蔡敏',
-  '骆晓丹',
-  '吴大雨',
-  '诸葛靓',
-  '庞觉',
-  '陈意航',
-  '周启航',
-];
+export const DEFAULT_COLLEAGUES: string[] = [];
 
 const BASE_SCHEDULE: Record<string, Partial<DaySchedule>> = {
   '2025-09-02': {
