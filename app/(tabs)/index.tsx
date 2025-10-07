@@ -27,7 +27,7 @@ export default function HomeScreen() {
   const initialMonth = useMemo(() => new Date(2025, 8, 1), []); // 2025-09
   const [currentMonth, setCurrentMonth] = useState<Date>(initialMonth);
   const [selectedDateKey, setSelectedDateKey] = useState<string>('2025-09-08');
-  const { updateOverride, getScheduleForDate, shiftTimes } = useSchedule();
+  const { updateOverride, getScheduleForDate, shiftTimes, colleaguePool } = useSchedule();
 
   const calendarDays = useMemo(() => buildCalendarDays(currentMonth), [currentMonth]);
 
@@ -51,6 +51,8 @@ export default function HomeScreen() {
     const config = SHIFT_CONFIG[shift];
     const customTime = shiftTimes[shift];
     const formattedCustom = formatShiftTimeRange(customTime);
+    const currentColleagues = scheduleByDay[selectedDateKey]?.colleagues ?? [];
+    const nextColleagues = shift === 'off' ? [] : currentColleagues;
     const defaultTime = shift === 'off'
       ? null
       : formattedCustom ?? config.defaultTime;
@@ -58,6 +60,19 @@ export default function HomeScreen() {
       ...(prev ?? {}),
       shift,
       shiftTime: defaultTime,
+      colleagues: nextColleagues,
+    }));
+  };
+
+  const handleColleaguesChange = (names: string[]) => {
+    const currentShift = scheduleByDay[selectedDateKey]?.shift;
+    if (currentShift === 'off') {
+      return;
+    }
+    const unique = Array.from(new Set(names));
+    updateOverride(selectedDateKey, (prev) => ({
+      ...(prev ?? {}),
+      colleagues: unique,
     }));
   };
 
@@ -154,6 +169,8 @@ export default function HomeScreen() {
           schedule={selectedSchedule}
           onShiftChange={handleShiftChange}
           shiftTimes={shiftTimes}
+          colleaguePool={colleaguePool}
+          onColleaguesChange={handleColleaguesChange}
         />
       </ScrollView>
     </SafeAreaView>
@@ -177,13 +194,18 @@ function DayDetailsCard({
   schedule,
   onShiftChange,
   shiftTimes,
+  colleaguePool,
+  onColleaguesChange,
 }: {
   schedule: DaySchedule;
   onShiftChange: (shift: ShiftType) => void;
   shiftTimes: ShiftTimeMap;
+  colleaguePool: string[];
+  onColleaguesChange: (names: string[]) => void;
 }) {
   const shiftConfig = SHIFT_CONFIG[schedule.shift];
   const dateLabel = formatChineseDate(schedule.date);
+  const isShiftOff = schedule.shift === 'off';
   const resolvedDefaultTime =
     schedule.shift === 'off'
       ? ''
@@ -193,6 +215,25 @@ function DayDetailsCard({
     schedule.shift === 'off'
       ? '休息日'
       : `${shiftConfig.label}${summaryTime ? ` ${summaryTime}` : ''}`;
+  const colleagueOptions = useMemo(() => {
+    if (isShiftOff) {
+      return [];
+    }
+    const selected = schedule.colleagues;
+    const remaining = colleaguePool.filter((name) => !selected.includes(name));
+    return [...selected, ...remaining];
+  }, [schedule.colleagues, colleaguePool, isShiftOff]);
+
+  const handleToggleColleague = (name: string) => {
+    if (isShiftOff) {
+      return;
+    }
+    const exists = schedule.colleagues.includes(name);
+    const next = exists
+      ? schedule.colleagues.filter((n) => n !== name)
+      : [...schedule.colleagues, name];
+    onColleaguesChange(next);
+  };
 
   return (
     <View style={styles.detailsCard}>
@@ -232,18 +273,49 @@ function DayDetailsCard({
         </Text>
       </View>
 
-      <Text style={styles.sectionTitle}>今日共事</Text>
-      <View style={styles.colleagueWrap}>
-        {schedule.colleagues.length === 0 ? (
-          <Text style={styles.emptyHint}>今日由你独自值守</Text>
-        ) : (
-          schedule.colleagues.map((name) => (
-            <View key={name} style={styles.colleaguePill}>
-              <Text style={styles.colleagueText}>{name}</Text>
-            </View>
-          ))
-        )}
+      <View style={styles.colleagueHeaderRow}>
+        <Text style={[styles.sectionTitle, styles.colleagueTitle]}>今日共事</Text>
+        {!isShiftOff && schedule.colleagues.length > 0 ? (
+          <Pressable hitSlop={6} onPress={() => onColleaguesChange([])}>
+            <Text style={styles.colleagueClearAction}>清空</Text>
+          </Pressable>
+        ) : null}
       </View>
+
+      {isShiftOff ? (
+        <Text style={styles.emptyHint}>休息日，不安排共事成员</Text>
+      ) : colleagueOptions.length === 0 ? (
+        <Text style={styles.emptyHint}>请先在“设置”中添加共事成员</Text>
+      ) : (
+        <>
+          <View style={styles.colleagueWrap}>
+            {colleagueOptions.map((name) => {
+              const isSelected = schedule.colleagues.includes(name);
+              return (
+                <Pressable
+                  key={name}
+                  style={[
+                    styles.colleagueToggle,
+                    isSelected && styles.colleagueToggleActive,
+                  ]}
+                  onPress={() => handleToggleColleague(name)}
+                  hitSlop={6}>
+                  <Text
+                    style={[
+                      styles.colleagueToggleText,
+                      isSelected && styles.colleagueToggleTextActive,
+                    ]}>
+                    {name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {schedule.colleagues.length === 0 ? (
+            <Text style={styles.emptyHint}>今日由你独自值守</Text>
+          ) : null}
+        </>
+      )}
 
       {schedule.tasks.length > 0 ? (
         <View style={styles.taskList}>
@@ -490,22 +562,45 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  colleagueHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  colleagueTitle: {
+    marginBottom: 0,
+  },
+  colleagueClearAction: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#D64545',
+  },
   colleagueWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-    marginBottom: 24,
+    marginBottom: 16,
   },
-  colleaguePill: {
+  colleagueToggle: {
     borderRadius: 999,
     backgroundColor: '#F3F4F6',
     paddingHorizontal: 14,
     paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(82, 54, 235, 0.16)',
   },
-  colleagueText: {
+  colleagueToggleActive: {
+    backgroundColor: '#5236EB',
+    borderColor: '#5236EB',
+  },
+  colleagueToggleText: {
     fontSize: 14,
     fontWeight: '500',
     color: '#20212A',
+  },
+  colleagueToggleTextActive: {
+    color: '#FFFFFF',
   },
   emptyHint: {
     fontSize: 13,

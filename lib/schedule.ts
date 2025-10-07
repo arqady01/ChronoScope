@@ -155,16 +155,20 @@ export function buildDaySchedule(
   const shift = override?.shift ?? base.shift ?? 'off';
   const shiftConfig = SHIFT_CONFIG[shift];
   const effectiveShiftTimes = options?.shiftTimes;
-  const effectiveColleaguePool = options?.colleaguePool;
   const defaultTime = computeDefaultShiftTime(shift, effectiveShiftTimes);
-  const autoColleagues = deriveColleagues(date.getDate(), effectiveColleaguePool);
+  const defaultColleaguesSource = override?.colleagues ?? base.colleagues;
+  const defaultColleagues = shift === 'off'
+    ? []
+    : Array.isArray(defaultColleaguesSource)
+      ? [...defaultColleaguesSource]
+      : [];
 
   return {
     key,
     date,
     shift,
     shiftTime: override?.shiftTime ?? base.shiftTime ?? defaultTime,
-    colleagues: override?.colleagues ?? base.colleagues ?? autoColleagues,
+    colleagues: defaultColleagues,
     tasks: override?.tasks ?? base.tasks ?? deriveTasks(date),
     notes: override?.notes ?? base.notes,
   };
@@ -180,16 +184,6 @@ export function formatDateKey(date: Date) {
 export function parseDateKey(key: string) {
   const [year, month, day] = key.split('-').map(Number);
   return new Date(year, (month ?? 1) - 1, day ?? 1);
-}
-
-export function deriveColleagues(day: number, pool: string[] = DEFAULT_COLLEAGUES): string[] {
-  if (!pool || pool.length === 0) {
-    return [];
-  }
-
-  const count = day % 4 === 0 ? 2 : 3;
-  const startIndex = (day * 2) % pool.length;
-  return Array.from({ length: count }, (_, idx) => pool[(startIndex + idx) % pool.length]);
 }
 
 export function formatShiftTimeRange(range: ShiftTimeValue): string | null {
