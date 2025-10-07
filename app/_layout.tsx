@@ -3,7 +3,9 @@ import { BlurView } from 'expo-blur';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
+
+import { HeaderBackButton } from '@react-navigation/elements';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -39,13 +41,25 @@ export default function RootLayout() {
                   fontWeight: '700',
                   color: '#1E202A',
                 },
-                headerStyle: {
-                  backgroundColor: '#F4F6FC',
-                },
                 headerBlurEffect: 'systemMaterialLight',
                 headerBackground: () => (
                   <BlurView tint="light" intensity={30} style={StyleSheet.absoluteFill} />
                 ),
+                headerLeft: (props) => (
+                  <HeaderBackButton {...props} labelVisible={false} tintColor="#1E202A" />
+                ),
+                headerTitleAlign: 'center',
+                headerStyle: {
+                  backgroundColor: '#F4F6FC',
+                  height: Platform.OS === 'ios' ? 60 : 52,
+                },
+                headerTitleContainerStyle: {
+                  paddingTop: Platform.OS === 'ios' ? 0 : 0,
+                  paddingBottom: 0,
+                },
+                headerBackButtonDisplayMode: 'minimal',
+                headerBackTitle: '',
+                headerStatusBarHeight: Platform.OS === 'ios' ? 0 : undefined,
               }}
             />
             <Stack.Screen name="statistics" options={{ headerShown: false, title: '统计总览' }} />

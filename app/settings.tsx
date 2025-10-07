@@ -1,3 +1,4 @@
+import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
@@ -8,7 +9,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
 
 import { Fonts } from '@/constants/theme';
 import { DEFAULT_COLLEAGUES, SHIFT_CONFIG, type ShiftType } from '@/lib/schedule';
@@ -107,7 +107,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
       <StatusBar style="dark" backgroundColor="#F4F6FC" />
       <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.sectionCard}>
@@ -157,40 +157,34 @@ export default function SettingsScreen() {
               <Text style={styles.sectionAction}>恢复默认</Text>
             </Pressable>
           </View>
-          <Text style={styles.sectionDescription}>更新可被排班的共事名单，日历将自动轮换这些名字。</Text>
-
-          {draftColleagues.length === 0 ? (
-            <Text style={styles.emptyHint}>当前列表为空，请添加至少一位共事成员。</Text>
-          ) : (
-            draftColleagues.map((name, index) => (
-              <View key={`colleague-${index}`} style={styles.colleagueRow}>
-                <Text style={styles.colleagueIndex}>{index + 1}</Text>
-                <TextInput
-                  value={name}
-                  onChangeText={(text) => {
-                    setDraftColleagues((prev) => {
-                      const next = [...prev];
-                      next[index] = text;
-                      return next;
-                    });
-                  }}
-                  onBlur={() => handleColleagueBlur(index)}
-                  placeholder="输入姓名"
-                  placeholderTextColor="#B1B6BF"
-                  style={styles.colleagueInput}
-                />
-                <Pressable
-                  hitSlop={6}
-                  onPress={() => {
-                    removeColleague(index);
-                    setDraftColleagues((prev) => prev.filter((_, idx) => idx !== index));
-                  }}
-                  style={styles.removeButton}>
-                  <Text style={styles.removeButtonText}>移除</Text>
-                </Pressable>
-              </View>
-            ))
-          )}
+          {draftColleagues.map((name, index) => (
+            <View key={`colleague-${index}`} style={styles.colleagueRow}>
+              <Text style={styles.colleagueIndex}>{index + 1}</Text>
+              <TextInput
+                value={name}
+                onChangeText={(text) => {
+                  setDraftColleagues((prev) => {
+                    const next = [...prev];
+                    next[index] = text;
+                    return next;
+                  });
+                }}
+                onBlur={() => handleColleagueBlur(index)}
+                placeholder="输入姓名"
+                placeholderTextColor="#B1B6BF"
+                style={styles.colleagueInput}
+              />
+              <Pressable
+                hitSlop={6}
+                onPress={() => {
+                  removeColleague(index);
+                  setDraftColleagues((prev) => prev.filter((_, idx) => idx !== index));
+                }}
+                style={styles.removeButton}>
+                <Text style={styles.removeButtonText}>移除</Text>
+              </Pressable>
+            </View>
+          ))}
 
           <View style={styles.addRow}>
             <TextInput
@@ -219,7 +213,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F4F6FC',
   },
   contentContainer: {
-    paddingTop: 24,
+    paddingTop: 16,
     paddingBottom: 40,
     paddingHorizontal: 20,
     gap: 24,
@@ -250,7 +244,7 @@ const styles = StyleSheet.create({
   sectionAction: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#5236EB',
+    color: '#D64545',
   },
   sectionDescription: {
     fontSize: 14,
@@ -278,10 +272,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#18191F',
     backgroundColor: '#F7F8FD',
-  },
-  emptyHint: {
-    fontSize: 14,
-    color: '#818499',
   },
   colleagueRow: {
     flexDirection: 'row',

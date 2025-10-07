@@ -236,13 +236,14 @@ function DayDetailsCard({
 
       <Text style={styles.sectionTitle}>今日共事</Text>
       <View style={styles.colleagueWrap}>
-        {schedule.colleagues.map((name) => (
-          <View key={name} style={styles.colleaguePill}>
-            <Text style={styles.colleagueText}>{name}</Text>
-          </View>
-        ))}
-        {schedule.colleagues.length === 0 && (
-          <Text style={styles.emptyHint}>暂无安排</Text>
+        {schedule.colleagues.length === 0 ? (
+          <Text style={styles.emptyHint}>今日由你独自值守</Text>
+        ) : (
+          schedule.colleagues.map((name) => (
+            <View key={name} style={styles.colleaguePill}>
+              <Text style={styles.colleagueText}>{name}</Text>
+            </View>
+          ))
         )}
       </View>
 
