@@ -1,4 +1,4 @@
-import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -8,26 +8,34 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { useRouter } from 'expo-router';
 
 import {
   SHIFT_CONFIG,
-  SHIFT_OPTIONS,
   buildCalendarDays,
-  formatShiftTimeRange,
   formatDateKey,
   type DaySchedule,
-  type ShiftTimeMap,
-  type ShiftType,
 } from '@/lib/schedule';
 import { useSchedule } from '@/providers/schedule-provider';
 
 const WEEKDAY_LABELS = ['一', '二', '三', '四', '五', '六', '日'];
+const PULL_THRESHOLD = 140;
+const TIP_TRIGGER_DISTANCE = 70;
+const TIP_DELAY = 2000;
 
 export default function HomeScreen() {
+  const router = useRouter();
   const initialMonth = useMemo(() => new Date(2025, 8, 1), []); // 2025-09
   const [currentMonth, setCurrentMonth] = useState<Date>(initialMonth);
   const [selectedDateKey, setSelectedDateKey] = useState<string>('2025-09-08');
-  const { updateOverride, getScheduleForDate, shiftTimes, colleaguePool } = useSchedule();
+  const [scrollEnabled, setScrollEnabled] = useState(true);
+  const [showReleaseTip, setShowReleaseTip] = useState(false);
+  const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const panY = useSharedValue(0);
+
+  const { getScheduleForDate } = useSchedule();
 
   const calendarDays = useMemo(() => buildCalendarDays(currentMonth), [currentMonth]);
 
@@ -44,48 +52,109 @@ export default function HomeScreen() {
   const selectedSchedule = scheduleByDay[selectedDateKey] ?? getScheduleForDate(selectedDateKey);
 
   const monthLabel = useMemo(() => formatMonth(currentMonth), [currentMonth]);
-
   const calendarRows = useMemo(() => chunk(calendarDays, 7), [calendarDays]);
 
-  const handleShiftChange = (shift: ShiftType) => {
-    const config = SHIFT_CONFIG[shift];
-    const customTime = shiftTimes[shift];
-    const formattedCustom = formatShiftTimeRange(customTime);
-    const currentColleagues = scheduleByDay[selectedDateKey]?.colleagues ?? [];
-    const nextColleagues = shift === 'off' ? [] : currentColleagues;
-    const defaultTime = shift === 'off'
-      ? null
-      : formattedCustom ?? config.defaultTime;
-    updateOverride(selectedDateKey, (prev) => ({
-      ...(prev ?? {}),
-      shift,
-      shiftTime: defaultTime,
-      colleagues: nextColleagues,
-    }));
-  };
-
-  const handleColleaguesChange = (names: string[]) => {
-    const currentShift = scheduleByDay[selectedDateKey]?.shift;
-    if (currentShift === 'off') {
-      return;
-    }
-    const unique = Array.from(new Set(names));
-    updateOverride(selectedDateKey, (prev) => ({
-      ...(prev ?? {}),
-      colleagues: unique,
-    }));
-  };
-
-  const handleGoToToday = () => {
+  const handleGoToToday = useCallback(() => {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     setCurrentMonth(monthStart);
     setSelectedDateKey(formatDateKey(now));
-  };
+  }, []);
+
+  const disableScroll = useCallback(() => {
+    setScrollEnabled(false);
+  }, []);
+
+  const enableScroll = useCallback(() => {
+    setScrollEnabled(true);
+  }, []);
+
+  const startHoldTip = useCallback(() => {
+    if (holdTimerRef.current) {
+      return;
+    }
+    holdTimerRef.current = setTimeout(() => {
+      setShowReleaseTip(true);
+    }, TIP_DELAY);
+  }, []);
+
+  const resetHoldTip = useCallback(() => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    setShowReleaseTip(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (holdTimerRef.current) {
+        clearTimeout(holdTimerRef.current);
+      }
+    };
+  }, []);
+
+  const navigateToEdit = useCallback(() => {
+    router.push({ pathname: '/edit-date', params: { date: selectedDateKey } });
+  }, [router, selectedDateKey]);
+
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .onBegin(() => {
+          runOnJS(disableScroll)();
+        })
+        .onUpdate((event) => {
+          const translation = event.translationY > 0 ? event.translationY : 0;
+          panY.value = translation;
+
+          if (translation > TIP_TRIGGER_DISTANCE) {
+            runOnJS(startHoldTip)();
+          } else {
+            runOnJS(resetHoldTip)();
+          }
+        })
+        .onEnd(() => {
+          runOnJS(enableScroll)();
+          if (panY.value >= PULL_THRESHOLD) {
+            panY.value = 0;
+            runOnJS(resetHoldTip)();
+            runOnJS(navigateToEdit)();
+          } else {
+            runOnJS(resetHoldTip)();
+            panY.value = withSpring(0, { damping: 18, stiffness: 200 });
+          }
+        })
+        .onFinalize(() => {
+          runOnJS(enableScroll)();
+          if (panY.value < PULL_THRESHOLD) {
+            panY.value = withSpring(0, { damping: 18, stiffness: 200 });
+          }
+        }),
+    [disableScroll, enableScroll, navigateToEdit, panY, resetHoldTip, startHoldTip],
+  );
+
+  const calendarAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: panY.value * 0.16 }],
+  }));
+
+  const indicatorAnimatedStyle = useAnimatedStyle(() => {
+    const progress = Math.min(panY.value / PULL_THRESHOLD, 1);
+    return {
+      opacity: progress === 0 ? 0 : progress,
+      transform: [
+        { translateY: panY.value * 0.25 },
+        { scale: 0.95 + progress * 0.1 },
+      ],
+    };
+  });
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        scrollEnabled={scrollEnabled}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
           <IconButton icon="chevron-back" onPress={() => changeMonth(-1, setCurrentMonth, setSelectedDateKey)} />
           <View style={styles.monthCluster}>
@@ -97,81 +166,85 @@ export default function HomeScreen() {
           <IconButton icon="chevron-forward" onPress={() => changeMonth(1, setCurrentMonth, setSelectedDateKey)} />
         </View>
 
-        <View style={styles.weekdayRow}>
-          {WEEKDAY_LABELS.map((label) => (
-            <Text key={label} style={styles.weekdayLabel}>
-              {label}
-            </Text>
-          ))}
-        </View>
-
-        <View style={styles.calendarGrid}>
-          {calendarRows.map((row, rowIdx) => (
-            <View key={`row-${rowIdx}`} style={styles.calendarRow}>
-              {row.map((day) => {
-                const schedule = scheduleByDay[day.key];
-                const shiftConfig = SHIFT_CONFIG[schedule.shift];
-                const isSelected = day.key === selectedDateKey;
-                const hasTasks = schedule.tasks.length > 0;
-
-                return (
-                  <Pressable
-                    key={day.key}
-                    style={styles.dayCell}
-                    onPress={() => setSelectedDateKey(day.key)}>
-                    <View
-                      style={[
-                        styles.dayInner,
-                        !day.isCurrentMonth && styles.outsideMonth,
-                        isSelected && [styles.selectedDay, { borderColor: shiftConfig.accent }],
-                      ]}>
-                      {hasTasks ? (
-                        <View style={styles.taskCountPill}> 
-                          <Text style={[styles.taskCountText, { color: shiftConfig.textColor }]}>{schedule.tasks.length}</Text>
-                        </View>
-                      ) : null}
-
-                      {schedule.shift === 'off' ? (
-                        <View style={styles.offIndicator}>
-                          <Text style={[styles.offIndicatorText, { color: SHIFT_CONFIG.off.textColor }]}>休</Text>
-                        </View>
-                      ) : null}
-
-                      <Text
-                        style={[
-                          styles.dayNumber,
-                          !day.isCurrentMonth && styles.outsideMonthText,
-                          isSelected && { color: shiftConfig.textColor },
-                        ]}>
-                        {formatDayNumber(day.date)}
-                      </Text>
-
-                      {schedule.shift !== 'off' ? (
-                        <Text
-                          style={[
-                            styles.shiftBadge,
-                            {
-                              color: shiftConfig.textColor,
-                            },
-                          ]}>
-                          {shiftConfig.shortLabel}
-                        </Text>
-                      ) : null}
-                    </View>
-                  </Pressable>
-                );
-              })}
+        <GestureDetector gesture={panGesture}>
+          <Animated.View style={[styles.calendarSection, calendarAnimatedStyle]}>
+            <Animated.View style={[styles.pullIndicator, indicatorAnimatedStyle]}>
+              <Text style={styles.pullIndicatorText}>
+                {showReleaseTip ? '松开进入编辑' : '下拉进入编辑'}
+              </Text>
+            </Animated.View>
+            <View style={styles.weekdayRow}>
+              {WEEKDAY_LABELS.map((label) => (
+                <Text key={label} style={styles.weekdayLabel}>
+                  {label}
+                </Text>
+              ))}
             </View>
-          ))}
-        </View>
 
-        <DayDetailsCard
-          schedule={selectedSchedule}
-          onShiftChange={handleShiftChange}
-          shiftTimes={shiftTimes}
-          colleaguePool={colleaguePool}
-          onColleaguesChange={handleColleaguesChange}
-        />
+            <View style={styles.calendarGrid}>
+              {calendarRows.map((row, rowIdx) => (
+                <View key={`row-${rowIdx}`} style={styles.calendarRow}>
+                  {row.map((day) => {
+                    const schedule = scheduleByDay[day.key];
+                    const shiftConfig = SHIFT_CONFIG[schedule.shift];
+                    const isSelected = day.key === selectedDateKey;
+                    const hasTasks = schedule.tasks.length > 0;
+
+                    return (
+                      <Pressable
+                        key={day.key}
+                        style={styles.dayCell}
+                        onPress={() => setSelectedDateKey(day.key)}>
+                        <View
+                          style={[
+                            styles.dayInner,
+                            !day.isCurrentMonth && styles.outsideMonth,
+                            isSelected && [styles.selectedDay, { borderColor: shiftConfig.accent }],
+                          ]}>
+                          {hasTasks ? (
+                            <View style={styles.taskCountPill}>
+                              <Text style={[styles.taskCountText, { color: shiftConfig.textColor }]}>{schedule.tasks.length}</Text>
+                            </View>
+                          ) : null}
+
+                          {schedule.shift === 'off' ? (
+                            <View style={styles.offIndicator}>
+                              <Text style={[styles.offIndicatorText, { color: SHIFT_CONFIG.off.textColor }]}>休</Text>
+                            </View>
+                          ) : null}
+
+                          <Text
+                            style={[
+                              styles.dayNumber,
+                              !day.isCurrentMonth && styles.outsideMonthText,
+                              isSelected && { color: shiftConfig.textColor },
+                            ]}>
+                            {formatDayNumber(day.date)}
+                          </Text>
+
+                          {schedule.shift !== 'off' ? (
+                            <Text
+                              style={[
+                                styles.shiftBadge,
+                                {
+                                  color: shiftConfig.textColor,
+                                },
+                              ]}>
+                              {shiftConfig.shortLabel}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+
+          </Animated.View>
+        </GestureDetector>
+
+        <DayDetailsCard schedule={selectedSchedule} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -190,131 +263,37 @@ function IconButton({ icon, onPress }: IconButtonProps) {
   );
 }
 
-function DayDetailsCard({
-  schedule,
-  onShiftChange,
-  shiftTimes,
-  colleaguePool,
-  onColleaguesChange,
-}: {
-  schedule: DaySchedule;
-  onShiftChange: (shift: ShiftType) => void;
-  shiftTimes: ShiftTimeMap;
-  colleaguePool: string[];
-  onColleaguesChange: (names: string[]) => void;
-}) {
+function DayDetailsCard({ schedule }: { schedule: DaySchedule }) {
   const shiftConfig = SHIFT_CONFIG[schedule.shift];
   const dateLabel = formatChineseDate(schedule.date);
-  const isShiftOff = schedule.shift === 'off';
-  const resolvedDefaultTime =
-    schedule.shift === 'off'
-      ? ''
-      : formatShiftTimeRange(shiftTimes[schedule.shift]) ?? shiftConfig.defaultTime ?? '';
-  const summaryTime = schedule.shiftTime ?? resolvedDefaultTime;
-  const summaryLabel =
-    schedule.shift === 'off'
-      ? '休息日'
-      : `${shiftConfig.label}${summaryTime ? ` ${summaryTime}` : ''}`;
-  const colleagueOptions = useMemo(() => {
-    if (isShiftOff) {
-      return [];
-    }
-    const selected = schedule.colleagues;
-    const remaining = colleaguePool.filter((name) => !selected.includes(name));
-    return [...selected, ...remaining];
-  }, [schedule.colleagues, colleaguePool, isShiftOff]);
-
-  const handleToggleColleague = (name: string) => {
-    if (isShiftOff) {
-      return;
-    }
-    const exists = schedule.colleagues.includes(name);
-    const next = exists
-      ? schedule.colleagues.filter((n) => n !== name)
-      : [...schedule.colleagues, name];
-    onColleaguesChange(next);
-  };
+  const resolvedShiftLabel = schedule.shift === 'off'
+    ? '休息日'
+    : `${shiftConfig.label}${schedule.shiftTime ? ` ${schedule.shiftTime}` : shiftConfig.defaultTime ? ` ${shiftConfig.defaultTime}` : ''}`;
 
   return (
     <View style={styles.detailsCard}>
       <Text style={styles.sectionTitle}>{`班次信息 - ${dateLabel}`}</Text>
 
-      <View style={styles.shiftSelectorRow}>
-        {SHIFT_OPTIONS.map((option) => {
-          const optionConfig = SHIFT_CONFIG[option];
-          const isActive = schedule.shift === option;
-          return (
-            <Pressable
-              key={option}
-              onPress={() => onShiftChange(option)}
-              style={[
-                styles.shiftOption,
-                {
-                  borderColor: optionConfig.textColor,
-                },
-                isActive && [styles.shiftOptionActive, { backgroundColor: optionConfig.softBackground, borderColor: optionConfig.accent }],
-              ]}>
-              <Text
-                style={[
-                  styles.shiftOptionLabel,
-                  { color: optionConfig.textColor },
-                  isActive && { color: optionConfig.accent },
-                ]}>
-                {option === 'off' ? '休息' : optionConfig.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
       <View style={[styles.shiftSummary, { backgroundColor: shiftConfig.softBackground }]}> 
         <Text style={[styles.shiftSummaryText, { color: shiftConfig.textColor }]}> 
-          {summaryLabel}
+          {resolvedShiftLabel}
         </Text>
       </View>
 
-      <View style={styles.colleagueHeaderRow}>
-        <Text style={[styles.sectionTitle, styles.colleagueTitle]}>今日共事</Text>
-        {!isShiftOff && schedule.colleagues.length > 0 ? (
-          <Pressable hitSlop={6} onPress={() => onColleaguesChange([])}>
-            <Text style={styles.colleagueClearAction}>清空</Text>
-          </Pressable>
-        ) : null}
-      </View>
+      <Text style={[styles.sectionTitle, styles.subSectionTitle]}>今日共事</Text>
 
-      {isShiftOff ? (
+      {schedule.shift === 'off' ? (
         <Text style={styles.emptyHint}>休息日，不安排共事成员</Text>
-      ) : colleagueOptions.length === 0 ? (
-        <Text style={styles.emptyHint}>请先在“设置”中添加共事成员</Text>
+      ) : schedule.colleagues.length > 0 ? (
+        <View style={styles.colleagueReadonlyWrap}>
+          {schedule.colleagues.map((name) => (
+            <View key={name} style={styles.colleagueBadge}>
+              <Text style={styles.colleagueBadgeText}>{name}</Text>
+            </View>
+          ))}
+        </View>
       ) : (
-        <>
-          <View style={styles.colleagueWrap}>
-            {colleagueOptions.map((name) => {
-              const isSelected = schedule.colleagues.includes(name);
-              return (
-                <Pressable
-                  key={name}
-                  style={[
-                    styles.colleagueToggle,
-                    isSelected && styles.colleagueToggleActive,
-                  ]}
-                  onPress={() => handleToggleColleague(name)}
-                  hitSlop={6}>
-                  <Text
-                    style={[
-                      styles.colleagueToggleText,
-                      isSelected && styles.colleagueToggleTextActive,
-                    ]}>
-                    {name}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {schedule.colleagues.length === 0 ? (
-            <Text style={styles.emptyHint}>今日由你独自值守</Text>
-          ) : null}
-        </>
+        <Text style={styles.emptyHint}>今日由你独自值守</Text>
       )}
 
       {schedule.tasks.length > 0 ? (
@@ -434,10 +413,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111827',
   },
+  calendarSection: {
+    marginTop: 20,
+    paddingTop: 22,
+    position: 'relative',
+  },
   weekdayRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
+    marginBottom: 20,
   },
   weekdayLabel: {
     width: `${100 / 7}%`,
@@ -446,7 +430,7 @@ const styles = StyleSheet.create({
     color: '#707070',
   },
   calendarGrid: {
-    marginTop: 20,
+    marginTop: 0,
   },
   calendarRow: {
     flexDirection: 'row',
@@ -513,6 +497,25 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
   },
+  pullIndicator: {
+    position: 'absolute',
+    top: 0,
+    alignSelf: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    shadowColor: '#5236EB',
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  pullIndicatorText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#000000',
+  },
   detailsCard: {
     marginTop: 32,
     backgroundColor: '#FFFFFF',
@@ -526,63 +529,35 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#1E202A',
-    marginBottom: 12,
-  },
-  shiftSummary: {
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 24,
-  },
-  shiftSelectorRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8,
+    color: '#1B1C24',
     marginBottom: 16,
   },
-  shiftOption: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+  subSectionTitle: {
+    marginTop: 20,
+    marginBottom: 12,
+    fontSize: 16,
   },
-  shiftOptionActive: {
-    borderWidth: 2,
-  },
-  shiftOptionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
+  shiftSummary: {
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
   },
   shiftSummaryText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
   },
-  colleagueHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  colleagueTitle: {
-    marginBottom: 0,
-  },
-  colleagueClearAction: {
+  emptyHint: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#D64545',
+    color: '#8A8D9A',
   },
-  colleagueWrap: {
+  colleagueReadonlyWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-    marginBottom: 16,
   },
-  colleagueToggle: {
+  colleagueBadge: {
     borderRadius: 999,
     backgroundColor: '#F3F4F6',
     paddingHorizontal: 14,
@@ -590,24 +565,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(82, 54, 235, 0.16)',
   },
-  colleagueToggleActive: {
-    backgroundColor: '#5236EB',
-    borderColor: '#5236EB',
-  },
-  colleagueToggleText: {
+  colleagueBadgeText: {
     fontSize: 14,
     fontWeight: '500',
     color: '#20212A',
   },
-  colleagueToggleTextActive: {
-    color: '#FFFFFF',
-  },
-  emptyHint: {
-    fontSize: 13,
-    color: '#8A8D9A',
-  },
   taskList: {
     gap: 12,
+    marginTop: 24,
   },
   taskItem: {
     borderRadius: 16,
@@ -642,7 +607,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   emptyTaskCard: {
-    marginTop: 8,
+    marginTop: 24,
     borderRadius: 18,
     backgroundColor: 'rgba(46, 189, 89, 0.08)',
     paddingVertical: 24,
