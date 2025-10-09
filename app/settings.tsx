@@ -2,6 +2,8 @@ import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,7 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TimerPickerModal } from 'react-native-timer-picker';
 
 import { Fonts } from '@/constants/theme';
@@ -59,6 +61,8 @@ export default function SettingsScreen() {
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null);
   const [draftColleagues, setDraftColleagues] = useState(colleaguePool);
   const [newColleagueName, setNewColleagueName] = useState('');
+  const insets = useSafeAreaInsets();
+  const keyboardVerticalOffset = useMemo(() => insets.bottom + 12, [insets.bottom]);
 
   useEffect(() => {
     setShiftDrafts(buildShiftDrafts(shiftTimes));
@@ -148,95 +152,103 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
       <StatusBar style="dark" backgroundColor="#F4F6FC" />
-      <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>班次时间</Text>
-            <Pressable hitSlop={8} onPress={handleResetShiftTimes}>
-              <Text style={styles.sectionAction}>恢复默认</Text>
-            </Pressable>
-          </View>
-          <Text style={styles.sectionDescription}>设置 早班 / 中班 / 晚班 在日历中的默认时间段。</Text>
-          {EDITABLE_SHIFTS.map(({ key, label }) => (
-            <View key={key} style={styles.shiftRow}>
-              <Text style={styles.shiftLabel}>{label}</Text>
-              <View style={styles.shiftTimeGroup}>
-                <Pressable
-                  style={styles.timeInput}
-                  onPress={() => openTimePicker(key, 'start')}
-                  hitSlop={6}>
-                  <Text style={styles.timeInputText}>{shiftDrafts[key].start}</Text>
-                </Pressable>
-                <Text style={styles.timeSeparator}>至</Text>
-                <Pressable
-                  style={styles.timeInput}
-                  onPress={() => openTimePicker(key, 'end')}
-                  hitSlop={6}>
-                  <Text style={styles.timeInputText}>{shiftDrafts[key].end}</Text>
-                </Pressable>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>共事成员</Text>
-            <Pressable
-              hitSlop={8}
-              onPress={() => {
-                resetColleagues();
-                setDraftColleagues([...DEFAULT_COLLEAGUES]);
-              }}>
-              <Text style={styles.sectionAction}>恢复默认</Text>
-            </Pressable>
-          </View>
-          {draftColleagues.map((name, index) => (
-            <View key={`colleague-${index}`} style={styles.colleagueRow}>
-              <Text style={styles.colleagueIndex}>{index + 1}</Text>
-              <TextInput
-                value={name}
-                onChangeText={(text) => {
-                  setDraftColleagues((prev) => {
-                    const next = [...prev];
-                    next[index] = text;
-                    return next;
-                  });
-                }}
-                onBlur={() => handleColleagueBlur(index)}
-                placeholder="输入姓名"
-                placeholderTextColor="#B1B6BF"
-                style={styles.colleagueInput}
-              />
-              <Pressable
-                hitSlop={6}
-                onPress={() => {
-                  removeColleague(index);
-                  setDraftColleagues((prev) => prev.filter((_, idx) => idx !== index));
-                }}
-                style={styles.removeButton}>
-                <Text style={styles.removeButtonText}>移除</Text>
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoider}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={keyboardVerticalOffset}>
+        <ScrollView
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled">
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>班次时间</Text>
+              <Pressable hitSlop={8} onPress={handleResetShiftTimes}>
+                <Text style={styles.sectionAction}>恢复默认</Text>
               </Pressable>
             </View>
-          ))}
-
-          <View style={styles.addRow}>
-            <TextInput
-              value={newColleagueName}
-              onChangeText={setNewColleagueName}
-              placeholder="添加新成员"
-              placeholderTextColor="#B1B6BF"
-              style={styles.addInput}
-            />
-            <Pressable
-              style={[styles.addButton, canAddColleague ? styles.addButtonEnabled : styles.addButtonDisabled]}
-              onPress={handleAddColleague}
-              disabled={!canAddColleague}>
-              <Text style={styles.addButtonText}>添加</Text>
-            </Pressable>
+            <Text style={styles.sectionDescription}>设置 早班 / 中班 / 晚班 在日历中的默认时间段。</Text>
+            {EDITABLE_SHIFTS.map(({ key, label }) => (
+              <View key={key} style={styles.shiftRow}>
+                <Text style={styles.shiftLabel}>{label}</Text>
+                <View style={styles.shiftTimeGroup}>
+                  <Pressable
+                    style={styles.timeInput}
+                    onPress={() => openTimePicker(key, 'start')}
+                    hitSlop={6}>
+                    <Text style={styles.timeInputText}>{shiftDrafts[key].start}</Text>
+                  </Pressable>
+                  <Text style={styles.timeSeparator}>至</Text>
+                  <Pressable
+                    style={styles.timeInput}
+                    onPress={() => openTimePicker(key, 'end')}
+                    hitSlop={6}>
+                    <Text style={styles.timeInputText}>{shiftDrafts[key].end}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
           </View>
-        </View>
-      </ScrollView>
+
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>共事成员</Text>
+              <Pressable
+                hitSlop={8}
+                onPress={() => {
+                  resetColleagues();
+                  setDraftColleagues([...DEFAULT_COLLEAGUES]);
+                }}>
+                <Text style={styles.sectionAction}>恢复默认</Text>
+              </Pressable>
+            </View>
+            {draftColleagues.map((name, index) => (
+              <View key={`colleague-${index}`} style={styles.colleagueRow}>
+                <Text style={styles.colleagueIndex}>{index + 1}</Text>
+                <TextInput
+                  value={name}
+                  onChangeText={(text) => {
+                    setDraftColleagues((prev) => {
+                      const next = [...prev];
+                      next[index] = text;
+                      return next;
+                    });
+                  }}
+                  onBlur={() => handleColleagueBlur(index)}
+                  placeholder="输入姓名"
+                  placeholderTextColor="#B1B6BF"
+                  style={styles.colleagueInput}
+                />
+                <Pressable
+                  hitSlop={6}
+                  onPress={() => {
+                    removeColleague(index);
+                    setDraftColleagues((prev) => prev.filter((_, idx) => idx !== index));
+                  }}
+                  style={styles.removeButton}>
+                  <Text style={styles.removeButtonText}>移除</Text>
+                </Pressable>
+              </View>
+            ))}
+
+            <View style={styles.addRow}>
+              <TextInput
+                value={newColleagueName}
+                onChangeText={setNewColleagueName}
+                placeholder="添加新成员"
+                placeholderTextColor="#B1B6BF"
+                style={styles.addInput}
+              />
+              <Pressable
+                style={[styles.addButton, canAddColleague ? styles.addButtonEnabled : styles.addButtonDisabled]}
+                onPress={handleAddColleague}
+                disabled={!canAddColleague}>
+                <Text style={styles.addButtonText}>添加</Text>
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <TimerPickerModal
         visible={pickerTarget !== null}
@@ -269,6 +281,9 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F4F6FC',
+  },
+  keyboardAvoider: {
+    flex: 1,
   },
   contentContainer: {
     paddingTop: 16,
