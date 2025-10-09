@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -19,6 +21,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ColleagueSelector } from '@/components/schedule/colleague-selector';
 import { ShiftSelector } from '@/components/schedule/shift-selector';
@@ -65,6 +68,11 @@ export default function EditDateScreen() {
   const entryTranslate = useSharedValue(70);
   const entryScale = useSharedValue(0.92);
   const entryOpacity = useSharedValue(0);
+  const insets = useSafeAreaInsets();
+  const keyboardVerticalOffset = useMemo(
+    () => HANDLE_HEIGHT + 8 + insets.top,
+    [insets.top],
+  );
 
   useEffect(() => {
     setShift(snapshot.shift);
@@ -288,69 +296,76 @@ export default function EditDateScreen() {
           <View style={styles.dragHandleContainer}>
             <View style={styles.dragHandle} />
           </View>
+          <KeyboardAvoidingView
+            style={styles.keyboardAvoider}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={keyboardVerticalOffset}>
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled">
+              <Text style={styles.pageTitle}>编辑排班</Text>
+              <Text style={styles.dateLabel}>{formattedDateLabel}</Text>
 
-          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            <Text style={styles.pageTitle}>编辑排班</Text>
-            <Text style={styles.dateLabel}>{formattedDateLabel}</Text>
-
-            <View style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>班次调整</Text>
-              <ShiftSelector value={shift} onChange={handleShiftChange} />
-              <View style={[styles.shiftSummary, { backgroundColor: SHIFT_CONFIG[shift].softBackground }]}>
-                <Text style={[styles.shiftSummaryText, { color: SHIFT_CONFIG[shift].textColor }]}>
-                  {summaryLabel}
-                </Text>
+              <View style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>班次调整</Text>
+                <ShiftSelector value={shift} onChange={handleShiftChange} />
+                <View style={[styles.shiftSummary, { backgroundColor: SHIFT_CONFIG[shift].softBackground }]}>
+                  <Text style={[styles.shiftSummaryText, { color: SHIFT_CONFIG[shift].textColor }]}>
+                    {summaryLabel}
+                  </Text>
+                </View>
               </View>
-            </View>
 
-            <View style={styles.sectionCard}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>共事成员</Text>
-                {shift !== 'off' && selectedColleagues.length > 0 ? (
-                  <Pressable hitSlop={6} onPress={() => setSelectedColleagues([])}>
-                    <Text style={styles.clearAction}>清空</Text>
-                  </Pressable>
-                ) : null}
+              <View style={styles.sectionCard}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionTitle}>共事成员</Text>
+                  {shift !== 'off' && selectedColleagues.length > 0 ? (
+                    <Pressable hitSlop={6} onPress={() => setSelectedColleagues([])}>
+                      <Text style={styles.clearAction}>清空</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+                <ColleagueSelector
+                  selected={selectedColleagues}
+                  pool={colleaguePool}
+                  onChange={setSelectedColleagues}
+                  disabled={shift === 'off'}
+                  showHeader={false}
+                />
               </View>
-              <ColleagueSelector
-                selected={selectedColleagues}
-                pool={colleaguePool}
-                onChange={setSelectedColleagues}
-                disabled={shift === 'off'}
-                showHeader={false}
-              />
-            </View>
 
-            <View style={styles.sectionCard}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>今日待办</Text>
-                {tasks.length > 0 ? (
-                  <View style={styles.taskCounterBadge}>
-                    <Text style={styles.taskCounterText}>{tasks.length} 项</Text>
-                  </View>
-                ) : null}
+              <View style={styles.sectionCard}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionTitle}>今日待办</Text>
+                  {tasks.length > 0 ? (
+                    <View style={styles.taskCounterBadge}>
+                      <Text style={styles.taskCounterText}>{tasks.length} 项</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <Text style={styles.sectionHint}>记录当天的待办，不需要填写时间或详情。</Text>
+                <TaskListEditor
+                  tasks={tasks}
+                  onRequestAdd={handleTaskAdd}
+                  onRequestRemove={handleTaskRemove}
+                  onTaskTitleChange={handleTaskTitleChange}
+                />
               </View>
-              <Text style={styles.sectionHint}>记录当天的待办，不需要填写时间或详情。</Text>
-              <TaskListEditor
-                tasks={tasks}
-                onRequestAdd={handleTaskAdd}
-                onRequestRemove={handleTaskRemove}
-                onTaskTitleChange={handleTaskTitleChange}
-              />
-            </View>
-          </ScrollView>
+            </ScrollView>
 
-          <View style={styles.footerActions}>
-            <Pressable style={styles.cancelButton} onPress={cancelChanges}>
-              <Text style={styles.cancelLabel}>取消</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.saveButton, !isDirty && styles.saveButtonDisabled]}
-              onPress={handleSave}
-              disabled={!isDirty}>
-              <Text style={styles.saveLabel}>保存</Text>
-            </Pressable>
-          </View>
+            <View style={styles.footerActions}>
+              <Pressable style={styles.cancelButton} onPress={cancelChanges}>
+                <Text style={styles.cancelLabel}>取消</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.saveButton, !isDirty && styles.saveButtonDisabled]}
+                onPress={handleSave}
+                disabled={!isDirty}>
+                <Text style={styles.saveLabel}>保存</Text>
+              </Pressable>
+            </View>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </Animated.View>
     </GestureDetector>
@@ -434,6 +449,9 @@ const styles = StyleSheet.create({
     height: 5,
     borderRadius: 999,
     backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  keyboardAvoider: {
+    flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 20,
