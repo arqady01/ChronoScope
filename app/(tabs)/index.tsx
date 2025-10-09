@@ -269,13 +269,14 @@ function DayDetailsCard({ schedule }: { schedule: DaySchedule }) {
   const resolvedShiftLabel = schedule.shift === 'off'
     ? '休息日'
     : `${shiftConfig.label}${schedule.shiftTime ? ` ${schedule.shiftTime}` : shiftConfig.defaultTime ? ` ${shiftConfig.defaultTime}` : ''}`;
+  const visibleTasks = schedule.tasks.filter((task) => task.title.trim().length > 0);
 
   return (
     <View style={styles.detailsCard}>
       <Text style={styles.sectionTitle}>{`班次信息 - ${dateLabel}`}</Text>
 
-      <View style={[styles.shiftSummary, { backgroundColor: shiftConfig.softBackground }]}> 
-        <Text style={[styles.shiftSummaryText, { color: shiftConfig.textColor }]}> 
+      <View style={[styles.shiftSummary, { backgroundColor: shiftConfig.softBackground }]}>
+        <Text style={[styles.shiftSummaryText, { color: shiftConfig.textColor }]}>
           {resolvedShiftLabel}
         </Text>
       </View>
@@ -296,19 +297,13 @@ function DayDetailsCard({ schedule }: { schedule: DaySchedule }) {
         <Text style={styles.emptyHint}>今日由你独自值守</Text>
       )}
 
-      {schedule.tasks.length > 0 ? (
-        <View style={styles.taskList}>
-          {schedule.tasks.map((task) => (
-            <View key={task.id} style={styles.taskItem}>
-              <View style={styles.taskHeader}>
-                {task.timeRange ? (
-                  <View style={styles.taskTimeBadge}>
-                    <Text style={styles.taskTimeText}>{task.timeRange}</Text>
-                  </View>
-                ) : null}
-                <Text style={styles.taskTitle}>{task.title}</Text>
-              </View>
-              {task.description ? <Text style={styles.taskDescription}>{task.description}</Text> : null}
+      <Text style={[styles.sectionTitle, styles.subSectionTitle]}>今日待办</Text>
+      {visibleTasks.length > 0 ? (
+        <View style={styles.simpleTaskList}>
+          {visibleTasks.map((task) => (
+            <View key={task.id} style={styles.simpleTaskRow}>
+              <View style={styles.simpleTaskBullet} />
+              <Text style={styles.simpleTaskTitle}>{task.title}</Text>
             </View>
           ))}
         </View>
@@ -570,41 +565,35 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#20212A',
   },
-  taskList: {
-    gap: 12,
-    marginTop: 24,
+  simpleTaskList: {
+    marginTop: 16,
+    gap: 10,
   },
-  taskItem: {
-    borderRadius: 16,
-    backgroundColor: '#F7F8F9',
-    padding: 16,
-  },
-  taskHeader: {
+  simpleTaskRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#E1E4EA',
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
     gap: 10,
-    marginBottom: 10,
   },
-  taskTimeBadge: {
-    borderRadius: 10,
-    backgroundColor: '#E8E4FF',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  simpleTaskBullet: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#5236EB',
   },
-  taskTimeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#5236EB',
-  },
-  taskTitle: {
+  simpleTaskTitle: {
+    flex: 1,
     fontSize: 15,
     fontWeight: '600',
     color: '#1F2029',
-  },
-  taskDescription: {
-    fontSize: 13,
-    color: '#5A5C6B',
-    lineHeight: 18,
   },
   emptyTaskCard: {
     marginTop: 24,

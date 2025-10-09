@@ -12,8 +12,6 @@ export type ShiftVisualConfig = {
 export type Task = {
   id: string;
   title: string;
-  timeRange?: string;
-  description?: string;
 };
 
 export type DaySchedule = {
@@ -93,7 +91,7 @@ export const DEFAULT_COLLEAGUES: string[] = [];
 
 const BASE_SCHEDULE: Record<string, Partial<DaySchedule>> = {
   '2025-09-02': {
-    tasks: [{ id: 'task-2025-09-02-1', title: '复盘晨会纪要', timeRange: '09:00', description: '整理班前会重点提醒内容。' }],
+    tasks: [{ id: 'task-2025-09-02-1', title: '复盘晨会纪要' }],
   },
   '2025-09-08': {
     colleagues: ['李晓', '张明华', '王思雅', '蔡敏'],
@@ -102,16 +100,16 @@ const BASE_SCHEDULE: Record<string, Partial<DaySchedule>> = {
   '2025-09-09': {
     colleagues: ['骆晓丹', '吴大雨', '诸葛靓', '庞觉'],
     tasks: [
-      { id: 'task-1', title: '校对字幕单', timeRange: '10:00 - 13:00', description: '确保活动厅字幕模板全部更新，交接给下个班次。' },
-      { id: 'task-2', title: '潜睡一会醒来继续鏖战', timeRange: '14:00 - 15:00', description: '补充精力后梳理夜班值守 FAQ。' },
-      { id: 'task-3', title: '喝水并远眺', timeRange: '19:00 - 20:00', description: '伸展肩颈，缓解久坐疲劳。' },
+      { id: 'task-1', title: '校对字幕单' },
+      { id: 'task-2', title: '潜睡一会醒来继续鏖战' },
+      { id: 'task-3', title: '喝水并远眺' },
     ],
   },
   '2025-09-15': {
     notes: '轮休日，去做一直想预约的体检。',
   },
   '2025-09-22': {
-    tasks: [{ id: 'task-2025-09-22-1', title: '月末库存盘点', timeRange: '17:00', description: '与仓储组核对耗材数量。' }],
+    tasks: [{ id: 'task-2025-09-22-1', title: '月末库存盘点' }],
   },
 };
 
@@ -254,8 +252,6 @@ function deriveTasks(date: Date): Task[] {
       {
         id: `${formatDateKey(date)}-task`,
         title: '更新交接日志',
-        timeRange: '18:30',
-        description: '确保上一班遗留问题有处理反馈。',
       },
     ];
   }

@@ -30,7 +30,7 @@ export const TaskListEditor = memo(function TaskListEditor({
       ) : (
         <View style={styles.list}>
           {tasks.map((task, index) => (
-            <View key={task.id ?? `${index}`} style={styles.row}>
+            <View key={task.id} style={styles.row}>
               <View style={styles.indexBadge}>
                 <Text style={styles.indexText}>{index + 1}</Text>
               </View>
@@ -39,12 +39,12 @@ export const TaskListEditor = memo(function TaskListEditor({
                 placeholder="输入待办事项"
                 placeholderTextColor="#9CA3AF"
                 value={task.title}
-                onChangeText={(value) => onTaskTitleChange(task.id ?? `${index}`, value)}
+                onChangeText={(value) => onTaskTitleChange(task.id, value)}
                 returnKeyType="done"
               />
               <Pressable
                 style={styles.removeButton}
-                onPress={() => onRequestRemove(task.id ?? `${index}`)}
+                onPress={() => onRequestRemove(task.id)}
                 accessibilityRole="button"
                 accessibilityLabel="删除待办事项"
               >
