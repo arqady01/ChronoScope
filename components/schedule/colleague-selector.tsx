@@ -123,11 +123,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: 'rgba(82, 54, 235, 0.16)',
+    borderColor: 'rgba(59, 123, 235, 0.18)',
   },
   optionChipActive: {
-    backgroundColor: '#5236EB',
-    borderColor: '#5236EB',
+    backgroundColor: '#E1ECFF',
+    borderColor: '#3B7BEB',
   },
   optionLabel: {
     fontSize: 14,
@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     color: '#20212A',
   },
   optionLabelActive: {
-    color: '#FFFFFF',
+    color: '#123B76',
   },
   hintText: {
     fontSize: 13,

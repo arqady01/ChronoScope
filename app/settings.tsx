@@ -240,10 +240,12 @@ export default function SettingsScreen() {
                 style={styles.addInput}
               />
               <Pressable
-                style={[styles.addButton, canAddColleague ? styles.addButtonEnabled : styles.addButtonDisabled]}
+                style={[styles.addButton, !canAddColleague && styles.addButtonDisabled]}
                 onPress={handleAddColleague}
                 disabled={!canAddColleague}>
-                <Text style={styles.addButtonText}>添加</Text>
+                <Text style={[styles.addButtonText, !canAddColleague && styles.addButtonTextDisabled]}>
+                  添加
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -416,17 +418,21 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 20,
     paddingVertical: 10,
-  },
-  addButtonEnabled: {
-    backgroundColor: '#5236EB',
+    borderWidth: 1,
+    borderColor: '#111827',
+    backgroundColor: 'transparent',
   },
   addButtonDisabled: {
-    backgroundColor: '#C6C7D5',
+    borderColor: 'rgba(17, 24, 39, 0.3)',
   },
   addButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#111827',
+    textAlign: 'center',
+  },
+  addButtonTextDisabled: {
+    color: 'rgba(17, 24, 39, 0.4)',
   },
 });
 
