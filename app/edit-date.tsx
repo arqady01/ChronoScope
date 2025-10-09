@@ -22,11 +22,13 @@ import Animated, {
 
 import { ColleagueSelector } from '@/components/schedule/colleague-selector';
 import { ShiftSelector } from '@/components/schedule/shift-selector';
+import { TaskListEditor } from '@/components/schedule/task-list-editor';
 import {
   SHIFT_CONFIG,
   formatDateKey,
   formatShiftTimeRange,
   type DaySchedule,
+  type Task,
   type ShiftTimeMap,
   type ShiftType,
 } from '@/lib/schedule';
@@ -55,6 +57,7 @@ export default function EditDateScreen() {
   const [shift, setShift] = useState<ShiftType>(snapshot.shift);
   const [shiftSummaryTime, setShiftSummaryTime] = useState<string | null>(snapshot.shiftTime ?? null);
   const [selectedColleagues, setSelectedColleagues] = useState<string[]>(snapshot.colleagues);
+  const [tasks, setTasks] = useState<Task[]>(() => ensureTasksWithIds(snapshot.tasks, resolvedKey));
 
   const closingRef = useRef(false);
   const translationY = useSharedValue(0);
@@ -67,7 +70,16 @@ export default function EditDateScreen() {
     setShift(snapshot.shift);
     setShiftSummaryTime(snapshot.shiftTime ?? computeDefaultTime(snapshot.shift, shiftTimes));
     setSelectedColleagues(snapshot.colleagues);
-  }, [snapshot.key, snapshot.shift, snapshot.shiftTime, snapshot.colleagues, shiftTimes]);
+    setTasks(ensureTasksWithIds(snapshot.tasks, resolvedKey));
+  }, [
+    resolvedKey,
+    shiftTimes,
+    snapshot.key,
+    snapshot.shift,
+    snapshot.shiftTime,
+    snapshot.colleagues,
+    snapshot.tasks,
+  ]);
 
   useEffect(() => {
     if (shift === 'off' && selectedColleagues.length > 0) {
@@ -183,19 +195,55 @@ export default function EditDateScreen() {
     [shift, snapshot.shift, snapshot.shiftTime, shiftTimes],
   );
 
+  const handleTaskTitleChange = useCallback((taskId: string, title: string) => {
+    setTasks((prev) =>
+      prev.map((task) => (task.id === taskId ? { ...task, title } : task)),
+    );
+  }, []);
+
+  const handleTaskRemove = useCallback((taskId: string) => {
+    setTasks((prev) => prev.filter((task) => task.id !== taskId));
+  }, []);
+
+  const handleTaskAdd = useCallback(() => {
+    setTasks((prev) => [...prev, { id: createTaskId(resolvedKey), title: '' }]);
+  }, [resolvedKey]);
+
+  const initialTaskSignature = useMemo(() => buildTaskSignature(snapshot.tasks), [snapshot.tasks]);
+  const currentTaskSignature = useMemo(() => buildTaskSignature(tasks), [tasks]);
+  const tasksDirty = useMemo(() => initialTaskSignature !== currentTaskSignature, [currentTaskSignature, initialTaskSignature]);
+
   const handleSave = useCallback(() => {
     const normalizedColleagues = shift === 'off' ? [] : Array.from(new Set(selectedColleagues));
     const normalizedTime = shift === 'off' ? null : shiftSummaryTime;
+    const normalizedTasks = sanitizeTasksForSave(tasks, resolvedKey);
 
-    updateOverride(resolvedKey, (prev) => ({
-      ...(prev ?? {}),
-      shift,
-      shiftTime: normalizedTime,
-      colleagues: normalizedColleagues,
-    }));
+    updateOverride(resolvedKey, (prev) => {
+      const nextOverride: Partial<DaySchedule> = {
+        ...(prev ?? {}),
+        shift,
+        shiftTime: normalizedTime,
+        colleagues: normalizedColleagues,
+      };
+
+      if (tasksDirty) {
+        nextOverride.tasks = normalizedTasks;
+      }
+
+      return nextOverride;
+    });
 
     triggerClose();
-  }, [resolvedKey, selectedColleagues, shift, shiftSummaryTime, triggerClose, updateOverride]);
+  }, [
+    resolvedKey,
+    selectedColleagues,
+    shift,
+    shiftSummaryTime,
+    tasks,
+    tasksDirty,
+    triggerClose,
+    updateOverride,
+  ]);
 
   const formattedDateLabel = useMemo(() => formatFullDate(snapshot.date), [snapshot.date]);
   const summaryLabel = useMemo(() => {
@@ -213,9 +261,18 @@ export default function EditDateScreen() {
     return (
       snapshot.shift !== shift ||
       (snapshot.shiftTime ?? null) !== (shiftSummaryTime ?? null) ||
-      initialColleagues !== currentColleagues
+      initialColleagues !== currentColleagues ||
+      tasksDirty
     );
-  }, [selectedColleagues, shift, shiftSummaryTime, snapshot.colleagues, snapshot.shift, snapshot.shiftTime]);
+  }, [
+    selectedColleagues,
+    shift,
+    shiftSummaryTime,
+    snapshot.colleagues,
+    snapshot.shift,
+    snapshot.shiftTime,
+    tasksDirty,
+  ]);
 
   return (
     <GestureDetector gesture={panGesture}>
@@ -263,6 +320,24 @@ export default function EditDateScreen() {
                 showHeader={false}
               />
             </View>
+
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>今日待办</Text>
+                {tasks.length > 0 ? (
+                  <View style={styles.taskCounterBadge}>
+                    <Text style={styles.taskCounterText}>{tasks.length} 项</Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text style={styles.sectionHint}>记录当天的待办，不需要填写时间或详情。</Text>
+              <TaskListEditor
+                tasks={tasks}
+                onRequestAdd={handleTaskAdd}
+                onRequestRemove={handleTaskRemove}
+                onTaskTitleChange={handleTaskTitleChange}
+              />
+            </View>
           </ScrollView>
 
           <View style={styles.footerActions}>
@@ -297,6 +372,48 @@ function formatFullDate(date: Date) {
   const weekdayNames = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
   const weekday = weekdayNames[(date.getDay() + 6) % 7];
   return `${year}年${month}月${day}日 · ${weekday}`;
+}
+
+function createTaskId(dateKey: string, seed?: number) {
+  const timeSegment = Date.now().toString(36);
+  const randomSegment = Math.random().toString(36).slice(2, 6);
+  const seedSegment = seed !== undefined ? seed.toString(36) : '';
+  return `task-${dateKey}-${seedSegment}-${timeSegment}-${randomSegment}`;
+}
+
+function ensureTasksWithIds(tasks: Task[], dateKey: string): Task[] {
+  if (!tasks || tasks.length === 0) {
+    return [];
+  }
+
+  return tasks.map((task, index) => ({
+    id: task.id && task.id.trim().length > 0 ? task.id : createTaskId(dateKey, index),
+    title: task.title ?? '',
+  }));
+}
+
+function buildTaskSignature(tasks: Task[]) {
+  return tasks
+    .map((task) => (task.title ?? '').trim())
+    .filter((title) => title.length > 0)
+    .join('||');
+}
+
+function sanitizeTasksForSave(tasks: Task[], dateKey: string): Task[] {
+  let autoIndex = 0;
+  return tasks.reduce<Task[]>((acc, task) => {
+    const trimmedTitle = (task.title ?? '').trim();
+    if (!trimmedTitle) {
+      return acc;
+    }
+    const identifier =
+      task.id && task.id.trim().length > 0 ? task.id : createTaskId(dateKey, autoIndex++);
+    acc.push({
+      id: identifier,
+      title: trimmedTitle,
+    });
+    return acc;
+  }, []);
 }
 
 const styles = StyleSheet.create({
@@ -354,6 +471,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  sectionHint: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
+  },
+  taskCounterBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(82, 54, 235, 0.12)',
+  },
+  taskCounterText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#5236EB',
   },
   clearAction: {
     fontSize: 13,

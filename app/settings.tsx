@@ -329,11 +329,11 @@ const styles = StyleSheet.create({
   timeInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: 'rgba(82, 54, 235, 0.25)',
+    borderColor: '#000000',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: '#F7F8FD',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
