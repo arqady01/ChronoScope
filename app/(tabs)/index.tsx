@@ -302,7 +302,6 @@ function DayDetailsCard({ schedule }: { schedule: DaySchedule }) {
         <View style={styles.simpleTaskList}>
           {visibleTasks.map((task) => (
             <View key={task.id} style={styles.simpleTaskRow}>
-              <View style={styles.simpleTaskBullet} />
               <Text style={styles.simpleTaskTitle}>{task.title}</Text>
             </View>
           ))}
@@ -581,13 +580,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
     elevation: 1,
-    gap: 10,
-  },
-  simpleTaskBullet: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#5236EB',
   },
   simpleTaskTitle: {
     flex: 1,

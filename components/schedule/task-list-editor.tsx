@@ -81,12 +81,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(82, 54, 235, 0.08)',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
   },
   indexText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#5236EB',
+    color: '#111827',
   },
   input: {
     flex: 1,
@@ -117,7 +119,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    backgroundColor: '#5236EB',
+    backgroundColor: '#111827',
   },
   addLabel: {
     fontSize: 15,

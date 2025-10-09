@@ -481,12 +481,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: 'rgba(82, 54, 235, 0.12)',
+    backgroundColor: '#E5E7EB',
   },
   taskCounterText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#5236EB',
+    color: '#111827',
   },
   clearAction: {
     fontSize: 13,
@@ -532,15 +532,15 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#5236EB',
-    shadowColor: '#5236EB',
+    backgroundColor: '#111827',
+    shadowColor: '#111827',
     shadowOpacity: 0.25,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
   },
   saveButtonDisabled: {
-    backgroundColor: 'rgba(82, 54, 235, 0.3)',
+    backgroundColor: 'rgba(17, 24, 39, 0.2)',
     shadowOpacity: 0,
   },
   saveLabel: {
