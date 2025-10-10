@@ -1,7 +1,9 @@
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
+  Easing,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -61,8 +63,30 @@ export default function SettingsScreen() {
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null);
   const [draftColleagues, setDraftColleagues] = useState(colleaguePool);
   const [newColleagueName, setNewColleagueName] = useState('');
+  const addInputAnim = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
   const keyboardVerticalOffset = useMemo(() => insets.bottom + 12, [insets.bottom]);
+  const addInputAnimatedStyle = useMemo(
+    () => ({
+      transform: [
+        {
+          scale: addInputAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [1, 1.02],
+          }),
+        },
+      ],
+      borderColor: addInputAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['#0000001E', '#111827'],
+      }),
+      backgroundColor: addInputAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['#FFFFFF', '#F7F9FF'],
+      }),
+    }),
+    [addInputAnim],
+  );
 
   useEffect(() => {
     setShiftDrafts(buildShiftDrafts(shiftTimes));
@@ -73,6 +97,15 @@ export default function SettingsScreen() {
   }, [colleaguePool]);
 
   const canAddColleague = useMemo(() => newColleagueName.trim().length > 0, [newColleagueName]);
+
+  useEffect(() => {
+    Animated.timing(addInputAnim, {
+      toValue: canAddColleague ? 1 : 0,
+      duration: 220,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: false,
+    }).start();
+  }, [addInputAnim, canAddColleague]);
 
   const openTimePicker = (shift: EditableShift, field: keyof ShiftTimeRange) => {
     setPickerTarget({ shift, field });
@@ -232,13 +265,15 @@ export default function SettingsScreen() {
             ))}
 
             <View style={styles.addRow}>
-              <TextInput
-                value={newColleagueName}
-                onChangeText={setNewColleagueName}
-                placeholder="添加新成员"
-                placeholderTextColor="#B1B6BF"
-                style={styles.addInput}
-              />
+              <Animated.View style={[styles.addInputContainer, addInputAnimatedStyle]}>
+                <TextInput
+                  value={newColleagueName}
+                  onChangeText={setNewColleagueName}
+                  placeholder="添加新成员"
+                  placeholderTextColor="#B1B6BF"
+                  style={styles.addInputField}
+                />
+              </Animated.View>
               <Pressable
                 style={[styles.addButton, !canAddColleague && styles.addButtonDisabled]}
                 onPress={handleAddColleague}
@@ -403,16 +438,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  addInput: {
+  addInputContainer: {
     flex: 1,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.12)',
-    borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+  },
+  addInputField: {
+    flex: 1,
     fontSize: 15,
     color: '#18191F',
-    backgroundColor: '#FFFFFF',
+    paddingVertical: 0,
   },
   addButton: {
     borderRadius: 12,
