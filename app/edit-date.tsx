@@ -344,12 +344,11 @@ export default function EditDateScreen() {
                     </View>
                   ) : null}
                 </View>
-                <Text style={styles.sectionHint}>记录当天的待办，不需要填写时间或详情。</Text>
-                <TaskListEditor
-                  tasks={tasks}
-                  onRequestAdd={handleTaskAdd}
-                  onRequestRemove={handleTaskRemove}
-                  onTaskTitleChange={handleTaskTitleChange}
+              <TaskListEditor
+                tasks={tasks}
+                onRequestAdd={handleTaskAdd}
+                onRequestRemove={handleTaskRemove}
+                onTaskTitleChange={handleTaskTitleChange}
                 />
               </View>
             </ScrollView>
@@ -489,11 +488,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  sectionHint: {
-    fontSize: 13,
-    color: '#6B7280',
-    lineHeight: 18,
   },
   taskCounterBadge: {
     paddingHorizontal: 10,
