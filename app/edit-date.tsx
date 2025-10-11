@@ -65,9 +65,11 @@ export default function EditDateScreen() {
   const closingRef = useRef(false);
   const translationY = useSharedValue(0);
   const sheetOpacity = useSharedValue(1);
-  const entryTranslate = useSharedValue(70);
-  const entryScale = useSharedValue(0.92);
+  const entryTranslate = useSharedValue(100);
+  const entryScale = useSharedValue(0.88);
   const entryOpacity = useSharedValue(0);
+  const entryRotate = useSharedValue(5);
+  const contentStagger = useSharedValue(0);
   const insets = useSafeAreaInsets();
   const keyboardVerticalOffset = useMemo(
     () => HANDLE_HEIGHT + 8 + insets.top,
@@ -96,13 +98,30 @@ export default function EditDateScreen() {
   }, [shift, selectedColleagues]);
 
   useEffect(() => {
-    entryTranslate.value = withSpring(0, { damping: 16, stiffness: 200 });
-    entryScale.value = withSpring(1, { damping: 16, stiffness: 220 });
+    // Enhanced entry animation with staggered effects
+    entryTranslate.value = withSpring(0, {
+      damping: 20,
+      stiffness: 180,
+      mass: 1.2,
+    });
+    entryScale.value = withSpring(1, {
+      damping: 18,
+      stiffness: 200,
+      mass: 1,
+    });
+    entryRotate.value = withSpring(0, {
+      damping: 20,
+      stiffness: 150,
+    });
     entryOpacity.value = withTiming(1, {
-      duration: 320,
+      duration: 400,
+      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+    });
+    contentStagger.value = withTiming(1, {
+      duration: 600,
       easing: Easing.out(Easing.cubic),
     });
-  }, [entryOpacity, entryScale, entryTranslate]);
+  }, [contentStagger, entryOpacity, entryRotate, entryScale, entryTranslate]);
 
   const dismiss = useCallback(() => {
     router.back();
@@ -114,30 +133,38 @@ export default function EditDateScreen() {
     }
     closingRef.current = true;
     sheetOpacity.value = withTiming(0, {
-      duration: 220,
+      duration: 240,
       easing: Easing.in(Easing.cubic),
     });
     translationY.value = withTiming(0, {
-      duration: 180,
+      duration: 200,
       easing: Easing.out(Easing.cubic),
     });
-    entryTranslate.value = withTiming(120, {
-      duration: 260,
+    entryTranslate.value = withTiming(150, {
+      duration: 280,
+      easing: Easing.in(Easing.back(1.2)),
+    });
+    entryScale.value = withTiming(0.9, {
+      duration: 280,
       easing: Easing.in(Easing.quad),
     });
-    entryScale.value = withTiming(0.94, {
-      duration: 260,
-      easing: Easing.inOut(Easing.ease),
+    entryRotate.value = withTiming(-3, {
+      duration: 280,
+      easing: Easing.in(Easing.quad),
+    });
+    contentStagger.value = withTiming(0, {
+      duration: 200,
+      easing: Easing.in(Easing.cubic),
     });
     entryOpacity.value = withTiming(0, {
-      duration: 220,
+      duration: 240,
       easing: Easing.in(Easing.quad),
     }, (finished) => {
       if (finished) {
         runOnJS(dismiss)();
       }
     });
-  }, [dismiss, entryOpacity, entryScale, entryTranslate, sheetOpacity, translationY]);
+  }, [contentStagger, dismiss, entryOpacity, entryRotate, entryScale, entryTranslate, sheetOpacity, translationY]);
 
   const cancelChanges = useCallback(() => {
     triggerClose();
@@ -173,14 +200,47 @@ export default function EditDateScreen() {
   const containerStyle = useAnimatedStyle(() => {
     const dragProgress = Math.min(translationY.value / DISMISS_THRESHOLD, 1);
     const baseScale = entryScale.value;
-    const scaled = interpolate(dragProgress, [0, 1], [baseScale, baseScale - 0.05], Extrapolation.CLAMP);
+    const scaled = interpolate(dragProgress, [0, 1], [baseScale, baseScale - 0.06], Extrapolation.CLAMP);
+    const rotation = entryRotate.value + dragProgress * 2;
 
     return {
       transform: [
         { translateY: translationY.value + entryTranslate.value },
-        { scale: Math.max(scaled, 0.88) },
-      ],
+        { scale: Math.max(scaled, 0.85) },
+        { rotateZ: `${rotation}deg` as any },
+      ] as any,
       opacity: sheetOpacity.value * entryOpacity.value,
+    };
+  });
+
+  const headerStyle = useAnimatedStyle(() => {
+    const delay = interpolate(contentStagger.value, [0, 1], [0, 1], Extrapolation.CLAMP);
+    return {
+      opacity: delay,
+      transform: [
+        { translateY: interpolate(delay, [0, 1], [30, 0], Extrapolation.CLAMP) },
+      ] as any,
+    };
+  });
+
+  const sectionStyle = useAnimatedStyle(() => {
+    const delay = interpolate(contentStagger.value, [0, 1], [0, 1], Extrapolation.CLAMP);
+    return {
+      opacity: delay,
+      transform: [
+        { translateY: interpolate(delay, [0, 1], [40, 0], Extrapolation.CLAMP) },
+        { scale: interpolate(delay, [0, 1], [0.95, 1], Extrapolation.CLAMP) },
+      ] as any,
+    };
+  });
+
+  const footerStyle = useAnimatedStyle(() => {
+    const delay = interpolate(contentStagger.value, [0, 1], [0, 1], Extrapolation.CLAMP);
+    return {
+      opacity: delay,
+      transform: [
+        { translateY: interpolate(delay, [0, 1], [60, 0], Extrapolation.CLAMP) },
+      ] as any,
     };
   });
 
@@ -304,10 +364,12 @@ export default function EditDateScreen() {
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled">
-              <Text style={styles.pageTitle}>编辑排班</Text>
-              <Text style={styles.dateLabel}>{formattedDateLabel}</Text>
+              <Animated.View style={headerStyle}>
+                <Text style={styles.pageTitle}>编辑排班</Text>
+                <Text style={styles.dateLabel}>{formattedDateLabel}</Text>
+              </Animated.View>
 
-              <View style={styles.sectionCard}>
+              <Animated.View style={[styles.sectionCard, sectionStyle]}>
                 <Text style={styles.sectionTitle}>班次调整</Text>
                 <ShiftSelector value={shift} onChange={handleShiftChange} />
                 <View style={[styles.shiftSummary, { backgroundColor: SHIFT_CONFIG[shift].softBackground }]}>
@@ -315,9 +377,9 @@ export default function EditDateScreen() {
                     {summaryLabel}
                   </Text>
                 </View>
-              </View>
+              </Animated.View>
 
-              <View style={styles.sectionCard}>
+              <Animated.View style={[styles.sectionCard, sectionStyle]}>
                 <View style={styles.sectionHeaderRow}>
                   <Text style={styles.sectionTitle}>共事成员</Text>
                   {shift !== 'off' && selectedColleagues.length > 0 ? (
@@ -333,9 +395,9 @@ export default function EditDateScreen() {
                   disabled={shift === 'off'}
                   showHeader={false}
                 />
-              </View>
+              </Animated.View>
 
-              <View style={styles.sectionCard}>
+              <Animated.View style={[styles.sectionCard, sectionStyle]}>
                 <View style={styles.sectionHeaderRow}>
                   <Text style={styles.sectionTitle}>今日待办</Text>
                   {tasks.length > 0 ? (
@@ -350,10 +412,10 @@ export default function EditDateScreen() {
                 onRequestRemove={handleTaskRemove}
                 onTaskTitleChange={handleTaskTitleChange}
                 />
-              </View>
+              </Animated.View>
             </ScrollView>
 
-            <View style={styles.footerActions}>
+            <Animated.View style={[styles.footerActions, footerStyle]}>
               <Pressable style={styles.cancelButton} onPress={cancelChanges}>
                 <Text style={styles.cancelLabel}>取消</Text>
               </Pressable>
@@ -363,7 +425,7 @@ export default function EditDateScreen() {
                 disabled={!isDirty}>
                 <Text style={styles.saveLabel}>保存</Text>
               </Pressable>
-            </View>
+            </Animated.View>
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Animated.View>
@@ -444,10 +506,14 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   dragHandle: {
-    width: 52,
+    width: 56,
     height: 5,
     borderRadius: 999,
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
   },
   keyboardAvoider: {
     flex: 1,
@@ -469,15 +535,17 @@ const styles = StyleSheet.create({
   sectionCard: {
     marginTop: 24,
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    paddingHorizontal: 18,
-    paddingVertical: 20,
-    shadowColor: '#B6BAC1',
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
+    borderRadius: 22,
+    paddingHorizontal: 20,
+    paddingVertical: 22,
+    shadowColor: '#5236EB',
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
     gap: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(82, 54, 235, 0.08)',
   },
   sectionTitle: {
     fontSize: 16,

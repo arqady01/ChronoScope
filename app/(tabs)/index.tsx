@@ -8,9 +8,19 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  interpolate,
+  Extrapolation,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
+import { BlurView } from 'expo-blur';
 
 import {
   SHIFT_CONFIG,
@@ -34,6 +44,8 @@ export default function HomeScreen() {
   const [showReleaseTip, setShowReleaseTip] = useState(false);
   const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
   const panY = useSharedValue(0);
+  const backgroundScale = useSharedValue(1);
+  const backgroundOpacity = useSharedValue(0);
 
   const { getScheduleForDate } = useSchedule();
 
@@ -108,6 +120,11 @@ export default function HomeScreen() {
           const translation = event.translationY > 0 ? event.translationY : 0;
           panY.value = translation;
 
+          // Calculate progress for visual effects
+          const progress = Math.min(translation / PULL_THRESHOLD, 1);
+          backgroundScale.value = 1 - progress * 0.05;
+          backgroundOpacity.value = progress * 0.6;
+
           if (translation > TIP_TRIGGER_DISTANCE) {
             runOnJS(startHoldTip)();
           } else {
@@ -117,134 +134,182 @@ export default function HomeScreen() {
         .onEnd(() => {
           runOnJS(enableScroll)();
           if (panY.value >= PULL_THRESHOLD) {
+            // Animate out before navigation
+            backgroundScale.value = withTiming(0.92, { duration: 300, easing: Easing.inOut(Easing.ease) });
+            backgroundOpacity.value = withTiming(1, { duration: 300, easing: Easing.inOut(Easing.ease) });
             panY.value = 0;
             runOnJS(resetHoldTip)();
             runOnJS(navigateToEdit)();
           } else {
             runOnJS(resetHoldTip)();
             panY.value = withSpring(0, { damping: 18, stiffness: 200 });
+            backgroundScale.value = withSpring(1, { damping: 18, stiffness: 200 });
+            backgroundOpacity.value = withTiming(0, { duration: 250 });
           }
         })
         .onFinalize(() => {
           runOnJS(enableScroll)();
           if (panY.value < PULL_THRESHOLD) {
             panY.value = withSpring(0, { damping: 18, stiffness: 200 });
+            backgroundScale.value = withSpring(1, { damping: 18, stiffness: 200 });
+            backgroundOpacity.value = withTiming(0, { duration: 250 });
           }
         }),
-    [disableScroll, enableScroll, navigateToEdit, panY, resetHoldTip, startHoldTip],
+    [backgroundOpacity, backgroundScale, disableScroll, enableScroll, navigateToEdit, panY, resetHoldTip, startHoldTip],
   );
 
-  const calendarAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: panY.value * 0.16 }],
-  }));
+  const calendarAnimatedStyle = useAnimatedStyle(() => {
+    const progress = Math.min(panY.value / PULL_THRESHOLD, 1);
+    const scale = interpolate(progress, [0, 1], [1, 0.98], Extrapolation.CLAMP);
+    const rotation = interpolate(progress, [0, 1], [0, -2], Extrapolation.CLAMP);
+
+    return {
+      transform: [
+        { translateY: panY.value * 0.2 },
+        { scale },
+        { rotateZ: `${rotation}deg` as any },
+      ] as any,
+      opacity: interpolate(progress, [0, 0.8, 1], [1, 0.95, 0.9], Extrapolation.CLAMP),
+    };
+  });
 
   const indicatorAnimatedStyle = useAnimatedStyle(() => {
     const progress = Math.min(panY.value / PULL_THRESHOLD, 1);
+    const scale = interpolate(progress, [0, 0.5, 1], [0.95, 1.05, 1.1], Extrapolation.CLAMP);
+    const rotation = interpolate(progress, [0, 1], [0, 3], Extrapolation.CLAMP);
+
     return {
-      opacity: progress === 0 ? 0 : progress,
+      opacity: progress === 0 ? 0 : interpolate(progress, [0, 0.3, 1], [0, 0.8, 1], Extrapolation.CLAMP),
       transform: [
-        { translateY: panY.value * 0.25 },
-        { scale: 0.95 + progress * 0.1 },
-      ],
+        { translateY: panY.value * 0.3 },
+        { scale },
+        { rotateZ: `${rotation}deg` as any },
+      ] as any,
+    };
+  });
+
+  const backgroundAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: backgroundOpacity.value,
+    transform: [{ scale: backgroundScale.value }] as any,
+  }));
+
+  const contentAnimatedStyle = useAnimatedStyle(() => {
+    const progress = Math.min(panY.value / PULL_THRESHOLD, 1);
+    const translateY = interpolate(progress, [0, 1], [0, 20], Extrapolation.CLAMP);
+    const scale = interpolate(progress, [0, 1], [1, 0.96], Extrapolation.CLAMP);
+
+    return {
+      transform: [
+        { translateY },
+        { scale },
+      ] as any,
     };
   });
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      {/* Animated background blur overlay */}
+      <Animated.View style={[styles.backgroundOverlay, backgroundAnimatedStyle]} pointerEvents="none">
+        <BlurView intensity={40} style={StyleSheet.absoluteFill} />
+      </Animated.View>
+
       <ScrollView
         scrollEnabled={scrollEnabled}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
-        <View style={styles.headerRow}>
-          <IconButton icon="chevron-back" onPress={() => changeMonth(-1, setCurrentMonth, setSelectedDateKey)} />
-          <View style={styles.monthCluster}>
-            <Text style={styles.monthTitle}>{monthLabel}</Text>
-            <Pressable style={styles.todayButton} onPress={handleGoToToday}>
-              <Text style={styles.todayButtonText}>今</Text>
-            </Pressable>
-          </View>
-          <IconButton icon="chevron-forward" onPress={() => changeMonth(1, setCurrentMonth, setSelectedDateKey)} />
-        </View>
-
-        <GestureDetector gesture={panGesture}>
-          <Animated.View style={[styles.calendarSection, calendarAnimatedStyle]}>
-            <Animated.View style={[styles.pullIndicator, indicatorAnimatedStyle]}>
-              <Text style={styles.pullIndicatorText}>
-                {showReleaseTip ? '松开进入编辑' : '下拉进入编辑'}
-              </Text>
-            </Animated.View>
-            <View style={styles.weekdayRow}>
-              {WEEKDAY_LABELS.map((label) => (
-                <Text key={label} style={styles.weekdayLabel}>
-                  {label}
-                </Text>
-              ))}
+        <Animated.View style={contentAnimatedStyle}>
+          <View style={styles.headerRow}>
+            <IconButton icon="chevron-back" onPress={() => changeMonth(-1, setCurrentMonth, setSelectedDateKey)} />
+            <View style={styles.monthCluster}>
+              <Text style={styles.monthTitle}>{monthLabel}</Text>
+              <Pressable style={styles.todayButton} onPress={handleGoToToday}>
+                <Text style={styles.todayButtonText}>今</Text>
+              </Pressable>
             </View>
+            <IconButton icon="chevron-forward" onPress={() => changeMonth(1, setCurrentMonth, setSelectedDateKey)} />
+          </View>
 
-            <View style={styles.calendarGrid}>
-              {calendarRows.map((row, rowIdx) => (
-                <View key={`row-${rowIdx}`} style={styles.calendarRow}>
-                  {row.map((day) => {
-                    const schedule = scheduleByDay[day.key];
-                    const shiftConfig = SHIFT_CONFIG[schedule.shift];
-                    const isSelected = day.key === selectedDateKey;
-                    const hasTasks = schedule.tasks.length > 0;
+          <GestureDetector gesture={panGesture}>
+            <Animated.View style={[styles.calendarSection, calendarAnimatedStyle]}>
+              <Animated.View style={[styles.pullIndicator, indicatorAnimatedStyle]}>
+                <View style={styles.pullIndicatorGlow} />
+                <Text style={styles.pullIndicatorText}>
+                  {showReleaseTip ? '松开进入编辑' : '下拉进入编辑'}
+                </Text>
+              </Animated.View>
+              <View style={styles.weekdayRow}>
+                {WEEKDAY_LABELS.map((label) => (
+                  <Text key={label} style={styles.weekdayLabel}>
+                    {label}
+                  </Text>
+                ))}
+              </View>
 
-                    return (
-                      <Pressable
-                        key={day.key}
-                        style={styles.dayCell}
-                        onPress={() => setSelectedDateKey(day.key)}>
-                        <View
-                          style={[
-                            styles.dayInner,
-                            !day.isCurrentMonth && styles.outsideMonth,
-                            isSelected && [styles.selectedDay, { borderColor: shiftConfig.accent }],
-                          ]}>
-                          {hasTasks ? (
-                            <View style={styles.taskCountPill}>
-                              <Text style={[styles.taskCountText, { color: shiftConfig.textColor }]}>{schedule.tasks.length}</Text>
-                            </View>
-                          ) : null}
+              <View style={styles.calendarGrid}>
+                {calendarRows.map((row, rowIdx) => (
+                  <View key={`row-${rowIdx}`} style={styles.calendarRow}>
+                    {row.map((day) => {
+                      const schedule = scheduleByDay[day.key];
+                      const shiftConfig = SHIFT_CONFIG[schedule.shift];
+                      const isSelected = day.key === selectedDateKey;
+                      const hasTasks = schedule.tasks.length > 0;
 
-                          {schedule.shift === 'off' ? (
-                            <View style={styles.offIndicator}>
-                              <Text style={[styles.offIndicatorText, { color: SHIFT_CONFIG.off.textColor }]}>休</Text>
-                            </View>
-                          ) : null}
-
-                          <Text
+                      return (
+                        <Pressable
+                          key={day.key}
+                          style={styles.dayCell}
+                          onPress={() => setSelectedDateKey(day.key)}>
+                          <View
                             style={[
-                              styles.dayNumber,
-                              !day.isCurrentMonth && styles.outsideMonthText,
-                              isSelected && { color: shiftConfig.textColor },
+                              styles.dayInner,
+                              !day.isCurrentMonth && styles.outsideMonth,
+                              isSelected && [styles.selectedDay, { borderColor: shiftConfig.accent }],
                             ]}>
-                            {formatDayNumber(day.date)}
-                          </Text>
+                            {hasTasks ? (
+                              <View style={styles.taskCountPill}>
+                                <Text style={[styles.taskCountText, { color: shiftConfig.textColor }]}>{schedule.tasks.length}</Text>
+                              </View>
+                            ) : null}
 
-                          {schedule.shift !== 'off' ? (
+                            {schedule.shift === 'off' ? (
+                              <View style={styles.offIndicator}>
+                                <Text style={[styles.offIndicatorText, { color: SHIFT_CONFIG.off.textColor }]}>休</Text>
+                              </View>
+                            ) : null}
+
                             <Text
                               style={[
-                                styles.shiftBadge,
-                                {
-                                  color: shiftConfig.textColor,
-                                },
+                                styles.dayNumber,
+                                !day.isCurrentMonth && styles.outsideMonthText,
+                                isSelected && { color: shiftConfig.textColor },
                               ]}>
-                              {shiftConfig.shortLabel}
+                              {formatDayNumber(day.date)}
                             </Text>
-                          ) : null}
-                        </View>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              ))}
-            </View>
 
-          </Animated.View>
-        </GestureDetector>
+                            {schedule.shift !== 'off' ? (
+                              <Text
+                                style={[
+                                  styles.shiftBadge,
+                                  {
+                                    color: shiftConfig.textColor,
+                                  },
+                                ]}>
+                                {shiftConfig.shortLabel}
+                              </Text>
+                            ) : null}
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ))}
+              </View>
 
-        <DayDetailsCard schedule={selectedSchedule} />
+            </Animated.View>
+          </GestureDetector>
+
+          <DayDetailsCard schedule={selectedSchedule} />
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -351,6 +416,11 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F4F6FC',
+  },
+  backgroundOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    zIndex: 999,
   },
   scrollContent: {
     paddingHorizontal: 8,
@@ -497,18 +567,30 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 999,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     shadowColor: '#5236EB',
-    shadowOpacity: 0.12,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 12,
-    elevation: 3,
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 18,
+    elevation: 5,
+    overflow: 'hidden',
+  },
+  pullIndicatorGlow: {
+    position: 'absolute',
+    top: -10,
+    left: -10,
+    right: -10,
+    bottom: -10,
+    backgroundColor: '#5236EB',
+    opacity: 0.08,
+    borderRadius: 999,
   },
   pullIndicatorText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#000000',
+    fontWeight: '700',
+    color: '#111827',
+    letterSpacing: 0.3,
   },
   detailsCard: {
     marginTop: 32,
